@@ -1,0 +1,133 @@
+{
+  "info": "Ejemplos de requests para probar la integración Supabase con Postman o Thunder Client",
+  "baseUrl": "http://localhost:5000/api",
+  "endpoints": [
+    {
+      "nombre": "Registro (Supabase)",
+      "metodo": "POST",
+      "url": "http://localhost:5000/api/auth/signup",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "email": "alumno@example.com",
+        "password": "password123"
+      },
+      "respuestaEsperada": {
+        "success": true,
+        "user": {
+          "id": "user-id-uuid",
+          "email": "alumno@example.com"
+        },
+        "message": "Registro exitoso. Verifica tu email para confirmar tu cuenta."
+      }
+    },
+    {
+      "nombre": "Login",
+      "metodo": "POST",
+      "url": "http://localhost:5000/api/auth/login",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "email": "alumno@example.com",
+        "password": "password123"
+      },
+      "respuestaEsperada": {
+        "success": true,
+        "user": {
+          "id": "user-id-uuid",
+          "email": "alumno@example.com",
+          "user_metadata": {}
+        },
+        "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "message": "Inicio de sesión exitoso"
+      }
+    },
+    {
+      "nombre": "Registrar Alumno en BD",
+      "metodo": "POST",
+      "url": "http://localhost:5000/api/alumnos",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      },
+      "body": {
+        "nombre": "Juan Pérez",
+        "edad": 16,
+        "correo": "alumno@example.com",
+        "telefono": "1234567890",
+        "direccion": "Calle Principal 123"
+      },
+      "respuestaEsperada": {
+        "success": true,
+        "message": "Alumno registrado correctamente",
+        "alumno": {
+          "_id": "mongodb-id",
+          "nombre": "Juan Pérez",
+          "edad": 16,
+          "correo": "alumno@example.com",
+          "telefono": "1234567890",
+          "direccion": "Calle Principal 123",
+          "supabaseId": "user-id-uuid",
+          "fechaRegistro": "2024-03-24T10:30:00.000Z"
+        }
+      }
+    },
+    {
+      "nombre": "Obtener todos los Alumnos",
+      "metodo": "GET",
+      "url": "http://localhost:5000/api/alumnos",
+      "headers": {},
+      "respuestaEsperada": [
+        {
+          "_id": "mongodb-id",
+          "nombre": "Juan Pérez",
+          "edad": 16,
+          "correo": "alumno@example.com",
+          "telefono": "1234567890",
+          "direccion": "Calle Principal 123",
+          "supabaseId": "user-id-uuid",
+          "fechaRegistro": "2024-03-24T10:30:00.000Z"
+        }
+      ]
+    },
+    {
+      "nombre": "Verificar Token",
+      "metodo": "GET",
+      "url": "http://localhost:5000/api/auth/verify",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      },
+      "respuestaEsperada": {
+        "success": true,
+        "user": {
+          "id": "user-id-uuid",
+          "email": "alumno@example.com",
+          "user_metadata": {},
+          "created_at": "2024-03-24T10:00:00.000Z"
+        },
+        "message": "Token válido"
+      }
+    },
+    {
+      "nombre": "Logout",
+      "metodo": "POST",
+      "url": "http://localhost:5000/api/auth/logout",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      },
+      "respuestaEsperada": {
+        "success": true,
+        "message": "Sesión cerrada correctamente"
+      }
+    }
+  ],
+  "notasImportantes": [
+    "Reemplaza los tokens Bearer con tokens reales obtenidos del endpoint /api/auth/login",
+    "Para probar endpoints protegidos, primero haz login y copia el accessToken",
+    "Incluye el token en el header: Authorization: Bearer <token>",
+    "El servidor debe estar ejecutándose en http://localhost:5000",
+    "MongoDB debe estar ejecutándose en tu máquina"
+  ]
+}
