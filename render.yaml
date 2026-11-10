@@ -40,13 +40,13 @@ services:
       - key: MONTO_MENSUALIDAD
         value: "500"
       - key: COBROS_CRON
-        value: 10 0 * * *
+        value: "10 0 * * *"
       - key: COBROS_TZ
         value: America/Bogota
       - key: ENABLE_REMINDERS
         value: "false"
       - key: REMINDERS_CRON
-        value: 0 9 * * *
+        value: "0 9 * * *"
 
       # Valores por entorno: se completan en el panel de Render.
       - key: CORS_ORIGINS
