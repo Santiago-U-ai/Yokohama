@@ -8,14 +8,34 @@ export const loginWithEmail = async (email, password) => {
   });
 
   if (error) {
-    throw new HttpError(401, "Credenciales inválidas", error.message);
+    // Mensaje genérico: no revelamos si el correo existe o no.
+    throw new HttpError(401, "Correo o contraseña incorrectos", error.message);
   }
 
   return {
     user: data.user,
     session: data.session,
-    accessToken: data.session?.access_token,
   };
+};
+
+/**
+ * Renueva la sesión a partir del refresh token (guardado en cookie
+ * httpOnly). Supabase rota el refresh token en cada llamada.
+ */
+export const refreshSession = async (refreshToken) => {
+  if (!refreshToken) {
+    throw new HttpError(401, "Sesión expirada");
+  }
+
+  const { data, error } = await supabase.auth.refreshSession({
+    refresh_token: refreshToken,
+  });
+
+  if (error || !data?.session) {
+    throw new HttpError(401, "Sesión expirada", error?.message);
+  }
+
+  return data.session;
 };
 
 export const signUpWithEmail = async (email, password, fullName) => {
@@ -58,10 +78,13 @@ export const verifyToken = async (token) => {
 };
 
 export const logout = async (token) => {
+  if (!token) return { message: "Sesión cerrada correctamente" };
+
   const { error } = await supabaseAdmin.auth.admin.signOut(token, "global");
 
   if (error) {
-    throw new HttpError(500, "No se pudo cerrar la sesión", error.message);
+    // Si el token ya expiró no es un fallo real: las cookies se borran igual.
+    console.warn("[auth] signOut:", error.message);
   }
 
   return { message: "Sesión cerrada correctamente" };

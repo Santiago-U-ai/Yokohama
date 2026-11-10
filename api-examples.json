@@ -1,59 +1,57 @@
 {
-  "info": "Ejemplos de requests para el backend Supabase de Club Yokohama",
+  "info": "Ejemplos de requests para el backend Supabase de Club Yokohama. La sesión viaja en cookies httpOnly; no se usan tokens en el navegador.",
   "baseUrl": "http://localhost:5000/api",
   "auth": {
-    "nota": "Las rutas protegidas requieren Authorization: Bearer <access_token>. El token se obtiene en /auth/login o /auth/signup.",
-    "admin": "El usuario debe tener role='admin' en public.profiles."
+    "flujo": "1) GET /auth/csrf. 2) POST /auth/login con la cabecera X-CSRF-Token. 3) El navegador guarda las cookies httpOnly automáticamente.",
+    "csrf": "Toda petición POST/PATCH/DELETE requiere la cabecera X-CSRF-Token con el valor devuelto por /auth/csrf.",
+    "cookies": "yh_session (access token), yh_refresh (refresh token) y yh_csrf (double-submit). Las dos primeras son httpOnly.",
+    "admin": "El usuario debe tener role='admin' en public.profiles. El registro público está deshabilitado."
   },
   "endpoints": [
     {
-      "nombre": "Registro",
-      "metodo": "POST",
-      "url": "http://localhost:5000/api/auth/signup",
-      "headers": { "Content-Type": "application/json" },
-      "body": {
-        "email": "alumno@example.com",
-        "password": "password123",
-        "nombre": "Juan Pérez"
-      }
+      "nombre": "Obtener token CSRF",
+      "metodo": "GET",
+      "url": "http://localhost:5000/api/auth/csrf",
+      "respuesta": { "csrfToken": "<token>" }
     },
     {
       "nombre": "Login",
       "metodo": "POST",
       "url": "http://localhost:5000/api/auth/login",
-      "headers": { "Content-Type": "application/json" },
+      "headers": { "Content-Type": "application/json", "X-CSRF-Token": "<token>" },
       "body": {
-        "email": "alumno@example.com",
-        "password": "password123"
+        "email": "admin@example.com",
+        "password": "<contraseña>"
       }
+    },
+    {
+      "nombre": "Renovar sesión",
+      "metodo": "POST",
+      "url": "http://localhost:5000/api/auth/refresh",
+      "headers": { "X-CSRF-Token": "<token>" },
+      "nota": "Rota el refresh token. El frontend lo llama automáticamente cuando recibe 401."
     },
     {
       "nombre": "Verificar sesión",
       "metodo": "GET",
-      "url": "http://localhost:5000/api/auth/verify",
-      "headers": { "Authorization": "Bearer <access_token>" }
+      "url": "http://localhost:5000/api/auth/me"
     },
     {
-      "nombre": "Mi ficha de alumno",
-      "metodo": "GET",
-      "url": "http://localhost:5000/api/alumnos/me",
-      "headers": { "Authorization": "Bearer <access_token>" },
-      "nota": "Si el alumno no existe, se crea automáticamente. Si hay una ficha sin cuenta con el mismo correo, se vincula."
+      "nombre": "Cerrar sesión",
+      "metodo": "POST",
+      "url": "http://localhost:5000/api/auth/logout",
+      "headers": { "X-CSRF-Token": "<token>" }
     },
     {
       "nombre": "Listar alumnos (admin)",
       "metodo": "GET",
-      "url": "http://localhost:5000/api/alumnos?grupo=BABY&activo=true",
-      "headers": { "Authorization": "Bearer <admin_access_token>" }
+      "url": "http://localhost:5000/api/alumnos?grupo=BABY&activo=true"
     },
     {
       "nombre": "Crear alumno (admin)",
       "metodo": "POST",
       "url": "http://localhost:5000/api/alumnos",
-      "headers": {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer <admin_access_token>"
-      },
+      "headers": { "Content-Type": "application/json", "X-CSRF-Token": "<token>" },
       "body": {
         "nombre": "Emiliano Cruz",
         "correo": "emiliano@example.com",
@@ -68,17 +66,13 @@
     {
       "nombre": "Listar pagos (admin)",
       "metodo": "GET",
-      "url": "http://localhost:5000/api/pagos?estado=pendiente&mes=2026-11",
-      "headers": { "Authorization": "Bearer <admin_access_token>" }
+      "url": "http://localhost:5000/api/pagos?estado=pendiente&mes=2026-11"
     },
     {
       "nombre": "Crear pago (admin)",
       "metodo": "POST",
       "url": "http://localhost:5000/api/pagos",
-      "headers": {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer <admin_access_token>"
-      },
+      "headers": { "Content-Type": "application/json", "X-CSRF-Token": "<token>" },
       "body": {
         "alumno_id": "<uuid-del-alumno>",
         "mes": "2026-11",
@@ -90,33 +84,23 @@
       "nombre": "Marcar pago como pagado (admin)",
       "metodo": "PATCH",
       "url": "http://localhost:5000/api/pagos/<uuid-del-pago>",
-      "headers": {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer <admin_access_token>"
-      },
+      "headers": { "Content-Type": "application/json", "X-CSRF-Token": "<token>" },
       "body": {
         "estado": "pagado",
         "fecha_pago": "2026-11-04"
       }
     },
     {
-      "nombre": "Subir comprobante (alumno)",
+      "nombre": "Subir comprobante",
       "metodo": "POST",
       "url": "http://localhost:5000/api/pagos/<uuid-del-pago>/comprobante",
-      "headers": { "Authorization": "Bearer <access_token>" },
+      "headers": { "X-CSRF-Token": "<token>" },
       "body": "multipart/form-data con el campo comprobante (JPG, PNG, WEBP o PDF, máximo 5 MB)"
     },
     {
       "nombre": "Dashboard admin",
       "metodo": "GET",
-      "url": "http://localhost:5000/api/dashboard",
-      "headers": { "Authorization": "Bearer <admin_access_token>" }
-    },
-    {
-      "nombre": "Dashboard alumno",
-      "metodo": "GET",
-      "url": "http://localhost:5000/api/dashboard/me",
-      "headers": { "Authorization": "Bearer <access_token>" }
+      "url": "http://localhost:5000/api/dashboard"
     }
   ]
 }

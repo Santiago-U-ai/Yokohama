@@ -1,5 +1,8 @@
-import { supabase, supabaseAdmin } from "../config/supabase.js";
+import { supabase } from "../config/supabase.js";
+import { ensureProfile } from "../services/profileService.js";
+import { getAccessToken } from "../utils/cookies.js";
 import { HttpError } from "../utils/httpError.js";
+import { securityLogFromRequest } from "../utils/securityLog.js";
 
 const getBearerToken = (req) => {
   const header = req.headers.authorization;
@@ -11,66 +14,51 @@ const getBearerToken = (req) => {
   return token;
 };
 
-const ensureProfile = async (user) => {
-  const { data: profile, error } = await supabaseAdmin
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
+/**
+ * Prefiere la cookie httpOnly; el Bearer queda solo para clientes de API
+ * que no son navegador.
+ */
+const resolveToken = (req) => {
+  const cookieToken = getAccessToken(req);
+  if (cookieToken) return { token: cookieToken, source: "cookie" };
 
-  if (error) {
-    throw new HttpError(500, "No se pudo cargar el perfil", error.message);
-  }
+  const bearer = getBearerToken(req);
+  if (bearer) return { token: bearer, source: "bearer" };
 
-  if (profile) return profile;
-
-  // Respaldo por si el trigger de auth.users no está instalado.
-  const fallbackProfile = {
-    id: user.id,
-    email: user.email ?? null,
-    full_name: user.user_metadata?.full_name ?? user.email ?? null,
-    role: user.app_metadata?.role === "admin" ? "admin" : "alumno",
-  };
-
-  const { data: created, error: createError } = await supabaseAdmin
-    .from("profiles")
-    .insert(fallbackProfile)
-    .select("*")
-    .single();
-
-  if (createError) {
-    throw new HttpError(500, "No se pudo crear el perfil", createError.message);
-  }
-
-  return created;
+  return null;
 };
 
 const authenticate = async (req) => {
-  const token = getBearerToken(req);
+  const resolved = resolveToken(req);
 
-  if (!token) {
-    throw new HttpError(401, "No autorizado", "Falta el token de autenticación");
+  if (!resolved) {
+    throw new HttpError(401, "No autorizado", "Falta la sesión");
   }
 
   const {
     data: { user },
     error,
-  } = await supabase.auth.getUser(token);
+  } = await supabase.auth.getUser(resolved.token);
 
   if (error || !user) {
-    throw new HttpError(401, "Token inválido", error?.message);
+    securityLogFromRequest(req, "token_invalido", {
+      reason: "Supabase rechazó el token",
+      detail: error?.message,
+    });
+    throw new HttpError(401, "Sesión expirada", error?.message);
   }
 
   const profile = await ensureProfile(user);
 
-  req.accessToken = token;
+  req.accessToken = resolved.token;
+  req.authSource = resolved.source;
   req.user = user;
   req.profile = profile;
   req.role = profile.role;
 };
 
 /**
- * Exige un JWT válido de Supabase y carga el perfil/rol del usuario.
+ * Exige una sesión válida y carga el perfil/rol del usuario.
  */
 export const authMiddleware = async (req, res, next) => {
   try {
@@ -83,14 +71,13 @@ export const authMiddleware = async (req, res, next) => {
 
 /**
  * Intenta autenticar pero nunca bloquea la petición.
- * Útil para endpoints públicos que se comportan distinto si hay sesión.
  */
 export const optionalAuthMiddleware = async (req, res, next) => {
-  if (!getBearerToken(req)) return next();
+  if (!resolveToken(req)) return next();
 
   try {
     await authenticate(req);
-  } catch (error) {
+  } catch {
     // La petición continúa sin usuario autenticado.
   }
 
@@ -99,6 +86,10 @@ export const optionalAuthMiddleware = async (req, res, next) => {
 
 export const requireAdmin = (req, res, next) => {
   if (req.role !== "admin") {
+    securityLogFromRequest(req, "acceso_admin_denegado", {
+      reason: "El usuario no tiene rol de administrador",
+    });
+
     return next(
       new HttpError(403, "No autorizado", "Se requiere rol de administrador"),
     );

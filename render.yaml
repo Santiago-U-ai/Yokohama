@@ -1,0 +1,61 @@
+# Blueprint de Render para la API de Yokohama.
+#
+# Uso: Render > New > Blueprint > selecciona el repositorio BACK y este archivo.
+# Las variables marcadas con `sync: false` se piden en el panel la primera vez.
+services:
+  - type: web
+    name: yokohama-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FORCE_HTTPS
+        value: "true"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: lax
+      - key: SESSION_TTL_MINUTES
+        value: "55"
+      - key: REFRESH_TTL_DAYS
+        value: "30"
+      - key: ENABLE_PUBLIC_SIGNUP
+        value: "false"
+      - key: SECURITY_LOG_FILE
+        value: logs/security.log
+      # Requiere haber ejecutado supabase/security_hardening.sql.
+      - key: SECURITY_DB_LOG
+        value: "true"
+      - key: SUPABASE_STORAGE_BUCKET
+        value: comprobantes
+      - key: MONTO_MENSUALIDAD
+        value: "500"
+      - key: COBROS_CRON
+        value: 10 0 * * *
+      - key: COBROS_TZ
+        value: America/Bogota
+      - key: ENABLE_REMINDERS
+        value: "false"
+      - key: REMINDERS_CRON
+        value: 0 9 * * *
+
+      # Valores por entorno: se completan en el panel de Render.
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

@@ -4,9 +4,11 @@ import {
   authMiddleware,
   requireAdmin,
 } from "../middleware/authMiddleware.js";
-import { comprobanteUpload } from "../middleware/upload.js";
+import { comprobanteUpload, validateComprobanteSignature } from "../middleware/upload.js";
+import { uploadLimiter } from "../middleware/rateLimit.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../utils/httpError.js";
+import { securityLogFromRequest } from "../utils/securityLog.js";
 import { serializePago } from "../utils/serializers.js";
 import { throwIfError, throwWriteError } from "../utils/supabaseError.js";
 import {
@@ -321,6 +323,11 @@ const uploadComprobante = asyncHandler(async (req, res) => {
     throwIfError(updateError, 500, "No se pudo guardar el comprobante");
   }
 
+  securityLogFromRequest(req, "comprobante_subido", {
+    level: "info",
+    detail: `pago ${pago.id}`,
+  });
+
   res.json({
     success: true,
     pago: serializePago(updated),
@@ -337,7 +344,9 @@ const uploadComprobante = asyncHandler(async (req, res) => {
 router.post(
   "/comprobante",
   authMiddleware,
+  uploadLimiter,
   comprobanteUpload.single("comprobante"),
+  validateComprobanteSignature,
   uploadComprobante,
 );
 
@@ -347,7 +356,9 @@ router.post(
 router.post(
   "/:id/comprobante",
   authMiddleware,
+  uploadLimiter,
   comprobanteUpload.single("comprobante"),
+  validateComprobanteSignature,
   uploadComprobante,
 );
 

@@ -7,10 +7,28 @@ export const isUuid = (value) =>
   );
 
 export const isEmail = (value) =>
-  typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  typeof value === "string" &&
+  value.length <= 254 &&
+  /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value) &&
+  !/[\u0000-\u001F\u007F]/.test(value);
 
 export const isMonth = (value) =>
   typeof value === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+
+/**
+ * Caracteres de control y de formato bidireccional que permiten inyectar
+ * saltos, ocultar texto o romper cabeceras.
+ */
+const DANGEROUS_CHARS =
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g;
+
+/**
+ * Limpia texto libre antes de guardarlo: elimina controles y los signos
+ * `<`/`>` para que nunca se almacene HTML ejecutable (defensa en
+ * profundidad; React además escapa al renderizar).
+ */
+export const sanitizeText = (value) =>
+  String(value).replace(DANGEROUS_CHARS, "").replace(/[<>]/g, "").normalize("NFC");
 
 /**
  * Normaliza un string. Devuelve null si es opcional y está vacío.
@@ -18,7 +36,7 @@ export const isMonth = (value) =>
 export const cleanText = (
   value,
   field,
-  { required = false, max = 255, trim = true } = {},
+  { required = false, max = 255, trim = true, sanitize = true } = {},
 ) => {
   if (value === undefined || value === null) {
     if (required) throw new HttpError(400, `El campo "${field}" es obligatorio`);
@@ -29,7 +47,8 @@ export const cleanText = (
     throw new HttpError(400, `El campo "${field}" debe ser texto`);
   }
 
-  const text = trim ? value.trim() : value;
+  const cleaned = sanitize ? sanitizeText(value) : value;
+  const text = trim ? cleaned.trim() : cleaned;
 
   if (!text) {
     if (required) throw new HttpError(400, `El campo "${field}" es obligatorio`);
@@ -44,6 +63,27 @@ export const cleanText = (
   }
 
   return text;
+};
+
+/**
+ * Término de búsqueda seguro para PostgREST: solo letras, números y unos
+ * pocos signos. Evita inyectar operadores en `.or()` o comodines de SQL.
+ */
+export const sanitizeSearchTerm = (value, max = 80) => {
+  if (value === undefined || value === null || value === "") return null;
+
+  if (typeof value !== "string") {
+    throw new HttpError(400, 'El campo "q" debe ser texto');
+  }
+
+  const term = value
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}@._\-\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+
+  return term || null;
 };
 
 export const parseInteger = (

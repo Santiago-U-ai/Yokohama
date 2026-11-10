@@ -44,6 +44,20 @@ export const sendPendingReminders = async () => {
 };
 
 export const startRemindersJob = () => {
+  const enabled =
+    String(process.env.ENABLE_REMINDERS ?? "false").toLowerCase() === "true";
+
+  if (!enabled) {
+    return null;
+  }
+
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.warn(
+      "[recordatorios] ENABLE_REMINDERS está activo pero faltan EMAIL_USER/EMAIL_PASS",
+    );
+    return null;
+  }
+
   const task = cron.schedule(CRON_EXPRESSION, async () => {
     try {
       const enviados = await sendPendingReminders();

@@ -1,6 +1,6 @@
 # Backend con Supabase
 
-Backend Express que usa **Supabase Postgres** para alumnos/pagos, **Supabase Auth** para sesiones y **Supabase Storage** para comprobantes. MongoDB/Mongoose ya no se usa.
+Backend Express que usa **Supabase Postgres** para alumnos/pagos, **Supabase Auth** para sesiones y **Supabase Storage** para comprobantes. La autenticación es **solo del lado del servidor**: el navegador nunca recibe tokens ni claves de Supabase.
 
 ## 1. Crear el proyecto
 
@@ -12,10 +12,11 @@ Backend Express que usa **Supabase Postgres** para alumnos/pagos, **Supabase Aut
 
 ## 2. Ejecutar el esquema
 
-En **SQL Editor**, ejecuta completo:
+En **SQL Editor**, ejecuta en este orden:
 
 ```text
 BACK/supabase/schema.sql
+BACK/supabase/security_hardening.sql
 ```
 
 Esto crea:
@@ -23,8 +24,9 @@ Esto crea:
 - `profiles` (rol `admin` o `alumno`)
 - `alumnos` (puede existir sin cuenta de Auth)
 - `pagos` (un pago por alumno/mes)
+- `security_events` (auditoría, sin acceso desde el cliente)
 - triggers de `updated_at` y de creación automática de perfil
-- políticas RLS
+- políticas RLS y permisos mínimos
 - bucket privado `comprobantes` (5 MB, JPG/PNG/WEBP/PDF)
 
 ## 3. Configurar variables
@@ -33,8 +35,16 @@ Copia `BACK/.env.example` a `BACK/.env` y completa los valores:
 
 ```env
 PORT=5000
-CORS_ORIGINS=http://localhost:5173
+NODE_ENV=development
+
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 FRONTEND_URL=http://localhost:5173
+
+FORCE_HTTPS=false
+TRUST_PROXY=false
+COOKIE_SECURE=false
+COOKIE_SAMESITE=lax
+ENABLE_PUBLIC_SIGNUP=false
 
 SUPABASE_URL=https://tu-proyecto.supabase.co
 SUPABASE_ANON_KEY=tu-anon-key
@@ -44,12 +54,24 @@ SUPABASE_STORAGE_BUCKET=comprobantes
 
 `SUPABASE_SERVICE_ROLE_KEY` **nunca** debe ir al frontend ni a Git. `BACK/.env` está ignorado.
 
+En producción:
+
+```env
+NODE_ENV=production
+FORCE_HTTPS=true
+TRUST_PROXY=true
+COOKIE_SECURE=true
+CORS_ORIGINS=https://tu-frontend.example.com
+FRONTEND_URL=https://tu-frontend.example.com
+```
+
+Si el frontend y la API están en dominios distintos, usa `COOKIE_SAMESITE=none` (obliga a `COOKIE_SECURE=true`).
+
 ## 4. Crear el primer administrador
 
-1. Crea la cuenta. Dos opciones:
-   - `POST /api/auth/signup` con `email`, `password` y `nombre`.
-   - Supabase Dashboard -> **Authentication > Users > Add user** (marca *Auto Confirm User*).
-2. En SQL Editor promueve el perfil:
+El registro público está deshabilitado. Crea la cuenta desde
+**Supabase Dashboard > Authentication > Users > Add user** (marca *Auto Confirm User*)
+y promueve el perfil:
 
 ```sql
 update public.profiles
@@ -57,9 +79,8 @@ set role = 'admin'
 where email = 'admin@tudominio.com';
 ```
 
-Los usuarios nuevos se crean como `alumno` y el perfil se genera solo por trigger.
-
-> **Límite de correos:** el plan gratuito de Supabase limita los correos de confirmación/recuperación (por defecto ~2 por hora). Si `POST /api/auth/signup` responde `{"error":"Error en el registro","details":"email rate limit exceeded"}`, crea el usuario desde el Dashboard o configura SMTP propio en **Authentication > Emails**.
+Las contraseñas las almacena Supabase Auth con hash (bcrypt/scrypt); el backend
+nunca las recibe para guardarlas ni las registra en logs.
 
 ## 5. Ejecutar
 
@@ -75,19 +96,36 @@ npm run dev
 
 Servidor: `http://localhost:5000`.
 
+## Seguridad implementada
+
+- **Sesión en cookies httpOnly** (`yh_session`, `yh_refresh`): ningún token está en `localStorage`.
+- **CSRF double-submit** con cookie `yh_csrf` + cabecera `X-CSRF-Token` en toda petición que modifica estado.
+- **CORS con allowlist** y `credentials: true`; en producción no se acepta ningún origen fuera de `CORS_ORIGINS`.
+- **Helmet**: CSP `default-src 'none'`, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer` y HSTS en producción.
+- **HTTPS obligatorio** con `FORCE_HTTPS=true` (redirección en GET, 403 en el resto).
+- **Rate limiting**: global, login (IP + correo) y subida de comprobantes.
+- **Validación estricta** de todos los campos, sanitización de texto y búsqueda segura para PostgREST.
+- **Registro de eventos** en `BACK/logs/security.log` (login fallido, CSRF inválido, origen bloqueado, acceso admin denegado, rate limit, etc.). Con `SECURITY_DB_LOG=true` también se guardan en `public.security_events`.
+- **Errores sin detalles internos**: nunca se devuelven mensajes de Supabase/SQL.
+- **Archivos**: máximo 5 MB y verificación de firma real (magic bytes), no solo del `mimetype`.
+- **Registro público deshabilitado** (`ENABLE_PUBLIC_SIGNUP=false`).
+
 ## Endpoints
 
-Todas las rutas protegidas esperan `Authorization: Bearer <access_token>`.
+La sesión se envía automáticamente en cookies. Para clientes que no son
+navegador también se acepta `Authorization: Bearer <access_token>`.
 
 ### Auth
 
 | Método | Ruta | Acceso |
 | --- | --- | --- |
-| `POST` | `/api/auth/signup` | Público. Body: `email`, `password`, `nombre?` |
-| `POST` | `/api/auth/login` | Público. Body: `email`, `password` |
+| `GET` | `/api/auth/csrf` | Público. Devuelve el token CSRF |
+| `POST` | `/api/auth/login` | Público. Body: `email`, `password` + `X-CSRF-Token` |
+| `POST` | `/api/auth/refresh` | Rota el refresh token (cookie) |
 | `GET` | `/api/auth/verify` | Autenticado |
 | `GET` | `/api/auth/me` | Autenticado |
-| `POST` | `/api/auth/logout` | Autenticado (revoca la sesión) |
+| `POST` | `/api/auth/logout` | Limpia las cookies y revoca la sesión |
+| `POST` | `/api/auth/signup` | Deshabilitado salvo `ENABLE_PUBLIC_SIGNUP=true` |
 
 ### Alumnos
 
@@ -99,8 +137,6 @@ Todas las rutas protegidas esperan `Authorization: Bearer <access_token>`.
 | `POST` | `/api/alumnos` | Admin, o usuario creando su propia ficha |
 | `PATCH` | `/api/alumnos/:id` | Admin o el propio alumno (sin cambiar estado/grupo/cinturón) |
 | `DELETE` | `/api/alumnos/:id` | Admin |
-
-`GET /api/alumnos` y `GET /api/alumnos/me` incluyen `ultimo_pago` (fecha del último pago pagado, o `null`) y `pagos_pendientes` (cantidad). El frontend usa esos campos para calcular Activo/Inactivo.
 
 ### Pagos
 
@@ -129,31 +165,38 @@ Al marcar un pago como `pagado`, si no se envía `fecha_pago` se usa la fecha ac
 ### Salud
 
 - `GET /api/health`
-- `GET /api/debug`
+
+No existe `/api/debug`.
 
 ## Roles y RLS
 
 - El backend usa la `service_role` y por tanto omite RLS.
-- Las políticas RLS existen para proteger accesos directos desde el frontend con la `publishable`/anon key.
+- El frontend **ya no** habla con Supabase; aunque la clave publishable es pública, las políticas siguen protegiendo accesos directos.
 - Un alumno solo puede leer su propia ficha y sus pagos.
 - Solo un `admin` puede crear/editar/eliminar pagos y listar todos los alumnos.
-- Endurecimiento adicional del esquema:
-  - `profiles` no tiene `update` para `authenticated`, así que nadie puede ascenderse a `admin` desde el cliente.
-  - `alumnos` solo permite actualizar `nombre`, `correo`, `telefono`, `edad` y `direccion`; `activo`, `grupo`, `cinturon` y `user_id` quedan solo para el backend.
-  - Un alumno no puede ver fichas ni pagos de otros (verificado con la clave pública).
+- `profiles` no tiene `insert/update/delete` para `authenticated`: nadie puede ascenderse a `admin` desde el cliente.
+- `alumnos` solo permite actualizar `nombre`, `correo`, `telefono`, `edad` y `direccion`; `activo`, `grupo`, `cinturon` y `user_id` quedan solo para el backend.
+- `pagos` es de solo lectura para `authenticated`; toda escritura pasa por el backend.
+- RLS está forzado (`force row level security`) y `anon` no tiene permisos sobre las tablas.
 
 ## Verificación
 
-Prueba de humo ejecutada contra el proyecto real (24/24 correctas):
+Pruebas automáticas:
 
-- login/verify de admin y alumno
-- crear/listar alumnos, validaciones y 401/403
-- crear pago, duplicado -> 409 y mes inválido -> 400
-- vinculación de `/alumnos/me` por correo
-- subida de comprobante, URL firmada y descarga
-- marcar pago como pagado con `fecha_pago` automática
-- dashboards de admin y alumno
-- RLS: ascenso a admin bloqueado, desactivar ficha bloqueado, datos ajenos invisibles
+```bash
+cd BACK
+npm test
+```
+
+Prueba de humo de seguridad ejecutada contra el servidor local:
+
+- `/api/debug` responde 404.
+- Origen no permitido responde 403 y queda registrado.
+- Login sin token CSRF responde 403.
+- Credenciales inválidas responden 401 con mensaje genérico.
+- Registro público responde 403.
+- `/api/auth/me` sin sesión responde 401.
+- `x-powered-by` ausente, CSP estricta, `X-Frame-Options: DENY`, `nosniff` y `Referrer-Policy` presentes.
 
 ## Comprobantes
 
@@ -161,6 +204,7 @@ Prueba de humo ejecutada contra el proyecto real (24/24 correctas):
 - Ruta interna: `<alumno_id>/<pago_id>-<timestamp>.<ext>`.
 - El backend sube con `service_role` y devuelve una URL firmada temporal.
 - Formatos: JPG, PNG, WEBP, PDF. Tamaño máximo: 5 MB.
+- Se valida la firma real del archivo (magic bytes).
 
 ## Recordatorios por correo (opcional)
 
@@ -175,13 +219,11 @@ EMAIL_PASS=tu-app-password
 EMAIL_FROM=Club Deportivo Yokohama
 ```
 
-El job agrupa los meses pendientes por alumno y envía un correo. Se inicia solo si `ENABLE_REMINDERS=true`.
+El job agrupa los meses pendientes por alumno y envía un correo. Se inicia solo si `ENABLE_REMINDERS=true` y hay credenciales.
 
 ## Notas de migración
 
 - El backend anterior usaba MongoDB. Los datos existentes **no** se migran automáticamente.
-- Si necesitas conservarlos, exporta los documentos de `alumnos`/`pagos` y mapéalos a las tablas nuevas:
-  - `nombre`, `correo`, `telefono`, `edad`, `direccion` se mantienen.
-  - `pagos.alumno` (nombre) debe convertirse en `pagos.alumno_id` (UUID de `alumnos`).
-  - `supabaseId` pasa a `alumnos.user_id`.
+- `pagos.alumno` (nombre) debe convertirse en `pagos.alumno_id` (UUID de `alumnos`).
+- `supabaseId` pasa a `alumnos.user_id`.
 - El proyecto Supabase anterior (`rpddsxvcnoxhipyxzeeg`) ya no existe; usa uno nuevo.

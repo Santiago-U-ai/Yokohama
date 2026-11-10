@@ -17,6 +17,7 @@ import {
   isUuid,
   parseBoolean,
   parseInteger,
+  sanitizeSearchTerm,
 } from "../utils/validation.js";
 
 const router = express.Router();
@@ -136,12 +137,11 @@ router.get(
     }
 
     if (req.query.q) {
-      const term = cleanText(req.query.q, "q", { max: 80 })?.replace(
-        /[,()]/g,
-        " ",
-      );
+      const term = sanitizeSearchTerm(req.query.q, 80);
 
       if (term) {
+        // El término ya está limitado a letras, números y signos seguros,
+        // así no puede inyectar operadores en el filtro de PostgREST.
         query = query.or(`nombre.ilike.%${term}%,correo.ilike.%${term}%`);
       }
     }
