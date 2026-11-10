@@ -1,133 +1,122 @@
 {
-  "info": "Ejemplos de requests para probar la integración Supabase con Postman o Thunder Client",
+  "info": "Ejemplos de requests para el backend Supabase de Club Yokohama",
   "baseUrl": "http://localhost:5000/api",
+  "auth": {
+    "nota": "Las rutas protegidas requieren Authorization: Bearer <access_token>. El token se obtiene en /auth/login o /auth/signup.",
+    "admin": "El usuario debe tener role='admin' en public.profiles."
+  },
   "endpoints": [
     {
-      "nombre": "Registro (Supabase)",
+      "nombre": "Registro",
       "metodo": "POST",
       "url": "http://localhost:5000/api/auth/signup",
-      "headers": {
-        "Content-Type": "application/json"
-      },
+      "headers": { "Content-Type": "application/json" },
       "body": {
         "email": "alumno@example.com",
-        "password": "password123"
-      },
-      "respuestaEsperada": {
-        "success": true,
-        "user": {
-          "id": "user-id-uuid",
-          "email": "alumno@example.com"
-        },
-        "message": "Registro exitoso. Verifica tu email para confirmar tu cuenta."
+        "password": "password123",
+        "nombre": "Juan Pérez"
       }
     },
     {
       "nombre": "Login",
       "metodo": "POST",
       "url": "http://localhost:5000/api/auth/login",
-      "headers": {
-        "Content-Type": "application/json"
-      },
+      "headers": { "Content-Type": "application/json" },
       "body": {
         "email": "alumno@example.com",
         "password": "password123"
-      },
-      "respuestaEsperada": {
-        "success": true,
-        "user": {
-          "id": "user-id-uuid",
-          "email": "alumno@example.com",
-          "user_metadata": {}
-        },
-        "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-        "message": "Inicio de sesión exitoso"
       }
     },
     {
-      "nombre": "Registrar Alumno en BD",
+      "nombre": "Verificar sesión",
+      "metodo": "GET",
+      "url": "http://localhost:5000/api/auth/verify",
+      "headers": { "Authorization": "Bearer <access_token>" }
+    },
+    {
+      "nombre": "Mi ficha de alumno",
+      "metodo": "GET",
+      "url": "http://localhost:5000/api/alumnos/me",
+      "headers": { "Authorization": "Bearer <access_token>" },
+      "nota": "Si el alumno no existe, se crea automáticamente. Si hay una ficha sin cuenta con el mismo correo, se vincula."
+    },
+    {
+      "nombre": "Listar alumnos (admin)",
+      "metodo": "GET",
+      "url": "http://localhost:5000/api/alumnos?grupo=BABY&activo=true",
+      "headers": { "Authorization": "Bearer <admin_access_token>" }
+    },
+    {
+      "nombre": "Crear alumno (admin)",
       "metodo": "POST",
       "url": "http://localhost:5000/api/alumnos",
       "headers": {
         "Content-Type": "application/json",
-        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "Authorization": "Bearer <admin_access_token>"
       },
       "body": {
-        "nombre": "Juan Pérez",
-        "edad": 16,
-        "correo": "alumno@example.com",
-        "telefono": "1234567890",
-        "direccion": "Calle Principal 123"
-      },
-      "respuestaEsperada": {
-        "success": true,
-        "message": "Alumno registrado correctamente",
-        "alumno": {
-          "_id": "mongodb-id",
-          "nombre": "Juan Pérez",
-          "edad": 16,
-          "correo": "alumno@example.com",
-          "telefono": "1234567890",
-          "direccion": "Calle Principal 123",
-          "supabaseId": "user-id-uuid",
-          "fechaRegistro": "2024-03-24T10:30:00.000Z"
-        }
+        "nombre": "Emiliano Cruz",
+        "correo": "emiliano@example.com",
+        "telefono": "3001234567",
+        "edad": 6,
+        "direccion": "Calle 1 # 2-3",
+        "grupo": "BABY",
+        "cinturon": "BLANCO",
+        "activo": true
       }
     },
     {
-      "nombre": "Obtener todos los Alumnos",
+      "nombre": "Listar pagos (admin)",
       "metodo": "GET",
-      "url": "http://localhost:5000/api/alumnos",
-      "headers": {},
-      "respuestaEsperada": [
-        {
-          "_id": "mongodb-id",
-          "nombre": "Juan Pérez",
-          "edad": 16,
-          "correo": "alumno@example.com",
-          "telefono": "1234567890",
-          "direccion": "Calle Principal 123",
-          "supabaseId": "user-id-uuid",
-          "fechaRegistro": "2024-03-24T10:30:00.000Z"
-        }
-      ]
+      "url": "http://localhost:5000/api/pagos?estado=pendiente&mes=2026-11",
+      "headers": { "Authorization": "Bearer <admin_access_token>" }
     },
     {
-      "nombre": "Verificar Token",
-      "metodo": "GET",
-      "url": "http://localhost:5000/api/auth/verify",
-      "headers": {
-        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-      },
-      "respuestaEsperada": {
-        "success": true,
-        "user": {
-          "id": "user-id-uuid",
-          "email": "alumno@example.com",
-          "user_metadata": {},
-          "created_at": "2024-03-24T10:00:00.000Z"
-        },
-        "message": "Token válido"
-      }
-    },
-    {
-      "nombre": "Logout",
+      "nombre": "Crear pago (admin)",
       "metodo": "POST",
-      "url": "http://localhost:5000/api/auth/logout",
+      "url": "http://localhost:5000/api/pagos",
       "headers": {
-        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "Content-Type": "application/json",
+        "Authorization": "Bearer <admin_access_token>"
       },
-      "respuestaEsperada": {
-        "success": true,
-        "message": "Sesión cerrada correctamente"
+      "body": {
+        "alumno_id": "<uuid-del-alumno>",
+        "mes": "2026-11",
+        "monto": 500,
+        "estado": "pendiente"
       }
+    },
+    {
+      "nombre": "Marcar pago como pagado (admin)",
+      "metodo": "PATCH",
+      "url": "http://localhost:5000/api/pagos/<uuid-del-pago>",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer <admin_access_token>"
+      },
+      "body": {
+        "estado": "pagado",
+        "fecha_pago": "2026-11-04"
+      }
+    },
+    {
+      "nombre": "Subir comprobante (alumno)",
+      "metodo": "POST",
+      "url": "http://localhost:5000/api/pagos/<uuid-del-pago>/comprobante",
+      "headers": { "Authorization": "Bearer <access_token>" },
+      "body": "multipart/form-data con el campo comprobante (JPG, PNG, WEBP o PDF, máximo 5 MB)"
+    },
+    {
+      "nombre": "Dashboard admin",
+      "metodo": "GET",
+      "url": "http://localhost:5000/api/dashboard",
+      "headers": { "Authorization": "Bearer <admin_access_token>" }
+    },
+    {
+      "nombre": "Dashboard alumno",
+      "metodo": "GET",
+      "url": "http://localhost:5000/api/dashboard/me",
+      "headers": { "Authorization": "Bearer <access_token>" }
     }
-  ],
-  "notasImportantes": [
-    "Reemplaza los tokens Bearer con tokens reales obtenidos del endpoint /api/auth/login",
-    "Para probar endpoints protegidos, primero haz login y copia el accessToken",
-    "Incluye el token en el header: Authorization: Bearer <token>",
-    "El servidor debe estar ejecutándose en http://localhost:5000",
-    "MongoDB debe estar ejecutándose en tu máquina"
   ]
 }

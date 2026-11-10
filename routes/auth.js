@@ -3,26 +3,48 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 import {
   loginWithEmail,
   signUpWithEmail,
-  verifyToken,
   logout,
 } from "../services/authService.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { HttpError } from "../utils/httpError.js";
+import { cleanText, isEmail } from "../utils/validation.js";
 
 const router = express.Router();
 
+const parseCredentials = (body) => {
+  const email = cleanText(body.email ?? body.correo, "email", {
+    required: true,
+    max: 160,
+  }).toLowerCase();
+
+  if (!isEmail(email)) {
+    throw new HttpError(400, "El correo no es válido");
+  }
+
+  const password = cleanText(body.password, "password", {
+    required: true,
+    max: 200,
+    trim: false,
+  });
+
+  if (password.length < 6) {
+    throw new HttpError(400, "La contraseña debe tener al menos 6 caracteres");
+  }
+
+  const fullName = cleanText(body.nombre ?? body.full_name, "nombre", {
+    max: 120,
+  });
+
+  return { email, password, fullName };
+};
+
 /**
  * POST /api/auth/login
- * Login con email y contraseña
  */
-router.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        error: "Email y contraseña son requeridos",
-      });
-    }
-
+router.post(
+  "/login",
+  asyncHandler(async (req, res) => {
+    const { email, password } = parseCredentials(req.body ?? {});
     const result = await loginWithEmail(email, password);
 
     res.json({
@@ -31,80 +53,72 @@ router.post("/login", async (req, res) => {
       accessToken: result.accessToken,
       message: "Inicio de sesión exitoso",
     });
-  } catch (error) {
-    res.status(401).json({
-      error: "Error de autenticación",
-      message: error.message,
-    });
-  }
-});
+  }),
+);
 
 /**
  * POST /api/auth/signup
- * Registro con email y contraseña
  */
-router.post("/signup", async (req, res) => {
-  try {
-    const { email, password } = req.body;
+router.post(
+  "/signup",
+  asyncHandler(async (req, res) => {
+    const { email, password, fullName } = parseCredentials(req.body ?? {});
+    const result = await signUpWithEmail(email, password, fullName);
 
-    if (!email || !password) {
-      return res.status(400).json({
-        error: "Email y contraseña son requeridos",
-      });
-    }
-
-    const result = await signUpWithEmail(email, password);
-
-    res.json({
+    res.status(201).json({
       success: true,
       user: result.user,
-      message: "Registro exitoso. Verifica tu email para confirmar tu cuenta.",
+      accessToken: result.session?.access_token ?? null,
+      message: result.session
+        ? "Registro exitoso"
+        : "Registro exitoso. Verifica tu correo para confirmar tu cuenta.",
     });
-  } catch (error) {
-    res.status(400).json({
-      error: "Error en el registro",
-      message: error.message,
-    });
-  }
-});
+  }),
+);
 
 /**
  * GET /api/auth/verify
- * Verificar el token del usuario actual
  */
-router.get("/verify", authMiddleware, async (req, res) => {
-  try {
+router.get(
+  "/verify",
+  authMiddleware,
+  asyncHandler(async (req, res) => {
     res.json({
       success: true,
       user: req.user,
+      profile: req.profile,
+      role: req.role,
       message: "Token válido",
     });
-  } catch (error) {
-    res.status(401).json({
-      error: "Token inválido",
-      message: error.message,
+  }),
+);
+
+/**
+ * GET /api/auth/me
+ */
+router.get(
+  "/me",
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    res.json({
+      success: true,
+      user: req.user,
+      profile: req.profile,
+      role: req.role,
     });
-  }
-});
+  }),
+);
 
 /**
  * POST /api/auth/logout
- * Logout del usuario
  */
-router.post("/logout", authMiddleware, async (req, res) => {
-  try {
-    await logout(req.headers.authorization.replace("Bearer ", ""));
-
-    res.json({
-      success: true,
-      message: "Sesión cerrada correctamente",
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: "Error en logout",
-      message: error.message,
-    });
-  }
-});
+router.post(
+  "/logout",
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const result = await logout(req.accessToken);
+    res.json({ success: true, ...result });
+  }),
+);
 
 export default router;

@@ -1,78 +1,68 @@
-import { supabase } from "../config/supabase.js";
-
-/**
- * Servicio para manejar autenticación con Supabase
- */
+import { supabase, supabaseAdmin } from "../config/supabase.js";
+import { HttpError } from "../utils/httpError.js";
 
 export const loginWithEmail = async (email, password) => {
-  try {
-    const response = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
-    if (response.error) {
-      throw new Error(response.error.message);
-    }
-
-    return {
-      user: response.data.user,
-      session: response.data.session,
-      accessToken: response.data.session?.access_token,
-    };
-  } catch (error) {
-    throw error;
+  if (error) {
+    throw new HttpError(401, "Credenciales inválidas", error.message);
   }
+
+  return {
+    user: data.user,
+    session: data.session,
+    accessToken: data.session?.access_token,
+  };
 };
 
-export const signUpWithEmail = async (email, password) => {
-  try {
-    const response = await supabase.auth.signUp({
-      email,
-      password,
-    });
+export const signUpWithEmail = async (email, password, fullName) => {
+  const options = {};
 
-    if (response.error) {
-      throw new Error(response.error.message);
-    }
-
-    return {
-      user: response.data.user,
-      session: response.data.session,
-    };
-  } catch (error) {
-    throw error;
+  if (fullName) {
+    options.data = { full_name: fullName };
   }
+  if (process.env.FRONTEND_URL) {
+    options.emailRedirectTo = process.env.FRONTEND_URL;
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    ...(Object.keys(options).length > 0 ? { options } : {}),
+  });
+
+  if (error) {
+    throw new HttpError(400, "Error en el registro", error.message);
+  }
+
+  return {
+    user: data.user,
+    session: data.session,
+  };
 };
 
 export const verifyToken = async (token) => {
-  try {
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(token);
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(token);
 
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return user;
-  } catch (error) {
-    throw error;
+  if (error || !user) {
+    throw new HttpError(401, "Token inválido", error?.message);
   }
+
+  return user;
 };
 
 export const logout = async (token) => {
-  try {
-    // El logout en Supabase se maneja en el cliente, pero podemos invalidar aquí si es necesario
-    const response = await supabase.auth.signOut();
+  const { error } = await supabaseAdmin.auth.admin.signOut(token, "global");
 
-    if (response.error) {
-      throw new Error(response.error.message);
-    }
-
-    return { message: "Sesión cerrada correctamente" };
-  } catch (error) {
-    throw error;
+  if (error) {
+    throw new HttpError(500, "No se pudo cerrar la sesión", error.message);
   }
+
+  return { message: "Sesión cerrada correctamente" };
 };

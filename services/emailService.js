@@ -1,36 +1,40 @@
-import nodemailer from "nodemailer"
+import nodemailer from "nodemailer";
 
-const transporter = nodemailer.createTransport({
+let transporter;
 
-service:"gmail",
+const getTransporter = () => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    throw new Error(
+      "EMAIL_USER y EMAIL_PASS deben estar configurados para enviar recordatorios",
+    );
+  }
 
-auth:{
-user:process.env.EMAIL_USER,
-pass:process.env.EMAIL_PASS
-}
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      service: process.env.EMAIL_SERVICE || "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+  }
 
-})
+  return transporter;
+};
 
-export const enviarRecordatorio = async(correo,nombre,mes)=>{
+export const enviarRecordatorio = async (correo, nombre, mes) => {
+  if (!correo) return;
 
-await transporter.sendMail({
+  const from = process.env.EMAIL_FROM || "Club Yokohama";
 
-from:"Club Yokohama",
-
-to:correo,
-
-subject:"Recordatorio mensualidad",
-
-html:`
-
-<h2>Hola ${nombre}</h2>
-
-<p>Tu mensualidad de ${mes} está pendiente.</p>
-
-<p>Club Karate Yokohama</p>
-
-`
-
-})
-
-}
+  await getTransporter().sendMail({
+    from,
+    to: correo,
+    subject: "Recordatorio mensualidad",
+    html: `
+      <h2>Hola ${nombre}</h2>
+      <p>Tu mensualidad de ${mes} está pendiente.</p>
+      <p>Club Deportivo Yokohama</p>
+    `,
+  });
+};

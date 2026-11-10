@@ -1,191 +1,187 @@
-# Supabase Integration - Guía de Configuración
+# Backend con Supabase
 
-## ✅ Lo que se ha configurado
+Backend Express que usa **Supabase Postgres** para alumnos/pagos, **Supabase Auth** para sesiones y **Supabase Storage** para comprobantes. MongoDB/Mongoose ya no se usa.
 
-### 1. **Backend (Express + Supabase)**
+## 1. Crear el proyecto
 
-- Instalado: `@supabase/supabase-js`
-- Creados archivos:
-  - `config/supabase.js` - Configuración de cliente Supabase
-  - `middleware/authMiddleware.js` - Middleware para verificar tokens JWT
-  - `services/authService.js` - Servicios de autenticación
-  - `routes/auth.js` - Endpoints de autenticación
+1. Crea un proyecto en [supabase.com](https://supabase.com).
+2. En **Project Settings > API** copia:
+   - `Project URL` -> `SUPABASE_URL`
+   - `anon public` -> `SUPABASE_ANON_KEY`
+   - `service_role` -> `SUPABASE_SERVICE_ROLE_KEY` (solo backend, nunca frontend)
 
-### 2. **Rutas de autenticación disponibles:**
+## 2. Ejecutar el esquema
 
-```
-POST   /api/auth/login          - Login con email/contraseña
-POST   /api/auth/signup         - Registro (no necesario si usas el frontend)
-GET    /api/auth/verify         - Verificar token actual
-POST   /api/auth/logout         - Logout
+En **SQL Editor**, ejecuta completo:
+
+```text
+BACK/supabase/schema.sql
 ```
 
-### 3. **Modelo de Alumno actualizado**
+Esto crea:
 
-- Agregado campo: `supabaseId` - ID del usuario en Supabase
-- Agregado campo: `direccion` - Dirección del alumno
+- `profiles` (rol `admin` o `alumno`)
+- `alumnos` (puede existir sin cuenta de Auth)
+- `pagos` (un pago por alumno/mes)
+- triggers de `updated_at` y de creación automática de perfil
+- políticas RLS
+- bucket privado `comprobantes` (5 MB, JPG/PNG/WEBP/PDF)
 
-### 4. **Rutas protegidas**
+## 3. Configurar variables
 
-- `POST /api/alumnos` - Ahora guarda el `supabaseId` del usuario registrado
-
----
-
-## 🔧 Configuración necesaria
-
-### Variables de entorno (.env)
-
-Asegúrate de que tu `.env` tenga:
+Copia `BACK/.env.example` a `BACK/.env` y completa los valores:
 
 ```env
 PORT=5000
-MONGO_URI=mongodb://localhost:27017/yokohama
+CORS_ORIGINS=http://localhost:5173
+FRONTEND_URL=http://localhost:5173
 
-SUPABASE_URL=https://rpddsxvcnoxhipyxzeeg.supabase.co
-SUPABASE_ANON_KEY=sb_publishable_PJqeC76lpq5peqfRHCgL7w_pHWItV5c
-SUPABASE_SERVICE_KEY=your_service_role_key_here
+SUPABASE_URL=https://tu-proyecto.supabase.co
+SUPABASE_ANON_KEY=tu-anon-key
+SUPABASE_SERVICE_ROLE_KEY=tu-service-role-key
+SUPABASE_STORAGE_BUCKET=comprobantes
 ```
 
-⚠️ **IMPORTANTE:** Reemplaza `SUPABASE_SERVICE_KEY` con tu clave real si deseas usar servicios del lado del servidor.
+`SUPABASE_SERVICE_ROLE_KEY` **nunca** debe ir al frontend ni a Git. `BACK/.env` está ignorado.
 
----
+## 4. Crear el primer administrador
 
-## 📱 Flujo de autenticación
+1. Crea la cuenta. Dos opciones:
+   - `POST /api/auth/signup` con `email`, `password` y `nombre`.
+   - Supabase Dashboard -> **Authentication > Users > Add user** (marca *Auto Confirm User*).
+2. En SQL Editor promueve el perfil:
 
-## OPCIÓN A: El frontend maneja todo (Recomendado)
-
-El frontend ya usa Supabase directamente:
-
-1. Usuario se registra con `supabase.auth.signUp()`
-2. Usuario inicia sesión con `supabase.auth.signInWithPassword()`
-3. Al registrarse/loguear, el frontend obtiene el token JWT
-4. Envía el token en el header: `Authorization: Bearer <token>`
-5. Backend valida el token para guardar datos adicionales en BD
-
-### Código en el Frontend (ya existe):
-
-```javascript
-const { data, error } = await supabase.auth.signInWithPassword({
-  email: form.correo,
-  password: form.password,
-});
-
-// Luego envía datos al backend:
-api.post("/alumnos", {Alumni datos...})
+```sql
+update public.profiles
+set role = 'admin'
+where email = 'admin@tudominio.com';
 ```
 
----
+Los usuarios nuevos se crean como `alumno` y el perfil se genera solo por trigger.
 
-## OPCIÓN B: Usar endpoints del backend (alternativa)
+> **Límite de correos:** el plan gratuito de Supabase limita los correos de confirmación/recuperación (por defecto ~2 por hora). Si `POST /api/auth/signup` responde `{"error":"Error en el registro","details":"email rate limit exceeded"}`, crea el usuario desde el Dashboard o configura SMTP propio en **Authentication > Emails**.
 
-Si prefieres que el backend maneje login/signup:
-
-```javascript
-// Login
-const response = await api.post("/auth/login", {
-  email: usuario@example.com,
-  password: "password123"
-});
-const token = response.data.accessToken;
-
-// Guardar token en localStorage
-localStorage.setItem("accessToken", token);
-
-// Usar en próximas requests
-api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-```
-
----
-
-## 🚀 Cómo ejecutar
-
-### En terminal:
+## 5. Ejecutar
 
 ```bash
-cd "c:\Users\santy\OneDrive\Escritorio\Yokohama\BACK"
-npm start
+cd BACK
+npm install
+npm run dev
 ```
 
-El servidor debería escuchar en `http://localhost:5000`
+- `npm run dev` usa `node --watch` (reinicio automático).
+- `npm start` ejecuta sin watch.
+- `npm test` corre las pruebas de validación/serialización con `node --test`.
 
----
+Servidor: `http://localhost:5000`.
 
-## ✅ Próximos pasos
+## Endpoints
 
-1. **Obtener Service Key de Supabase** (si quieres validar desde el backend)
-   - Ve a: Settings → API → Service Role Key en tu proyecto Supabase
-   - Cópiala en `.env` como `SUPABASE_SERVICE_KEY`
+Todas las rutas protegidas esperan `Authorization: Bearer <access_token>`.
 
-2. **Iniciar MongoDB localmente**
+### Auth
 
-   ```bash
-   mongod
-   ```
+| Método | Ruta | Acceso |
+| --- | --- | --- |
+| `POST` | `/api/auth/signup` | Público. Body: `email`, `password`, `nombre?` |
+| `POST` | `/api/auth/login` | Público. Body: `email`, `password` |
+| `GET` | `/api/auth/verify` | Autenticado |
+| `GET` | `/api/auth/me` | Autenticado |
+| `POST` | `/api/auth/logout` | Autenticado (revoca la sesión) |
 
-   O actualiza `MONGO_URI` en `.env` si usas MongoDB Atlas
+### Alumnos
 
-3. **Probar endpoints** con Postman o Thunder Client:
+| Método | Ruta | Acceso |
+| --- | --- | --- |
+| `GET` | `/api/alumnos` | Admin. Filtros: `grupo`, `activo`, `q` |
+| `GET` | `/api/alumnos/me` | Alumno autenticado. Vincula por correo si existe una ficha sin cuenta |
+| `GET` | `/api/alumnos/:id` | Admin o el propio alumno |
+| `POST` | `/api/alumnos` | Admin, o usuario creando su propia ficha |
+| `PATCH` | `/api/alumnos/:id` | Admin o el propio alumno (sin cambiar estado/grupo/cinturón) |
+| `DELETE` | `/api/alumnos/:id` | Admin |
 
-   ```
-   POST http://localhost:5000/api/auth/login
-   Content-Type: application/json
+`GET /api/alumnos` y `GET /api/alumnos/me` incluyen `ultimo_pago` (fecha del último pago pagado, o `null`) y `pagos_pendientes` (cantidad). El frontend usa esos campos para calcular Activo/Inactivo.
 
-   {
-     "email": "usuario@example.com",
-     "password": "password123"
-   }
-   ```
+### Pagos
 
-4. **Conectar con el frontend** en `C:\Users\santy\OneDrive\Escritorio\Yokohama\FRONT\frontend`
+| Método | Ruta | Acceso |
+| --- | --- | --- |
+| `GET` | `/api/pagos` | Admin. Filtros: `alumno_id`, `estado`, `mes`, `desde`, `hasta`, `limit` |
+| `GET` | `/api/pagos/me` | Alumno autenticado |
+| `GET` | `/api/pagos/alumno/:alumnoId` | Admin o el propio alumno |
+| `GET` | `/api/pagos/:id` | Admin o el propio alumno |
+| `POST` | `/api/pagos` | Admin. Body: `alumno_id`, `mes` (`YYYY-MM`), `monto?`, `estado?` |
+| `PATCH` | `/api/pagos/:id` | Admin. Cambia estado, monto, mes o fecha |
+| `DELETE` | `/api/pagos/:id` | Admin. También elimina el comprobante de Storage |
+| `POST` | `/api/pagos/comprobante` | Alumno/admin. Multipart `comprobante` + `pago_id?` |
+| `POST` | `/api/pagos/:id/comprobante` | Alumno propietario o admin |
+| `GET` | `/api/pagos/:id/comprobante` | Devuelve URL firmada por 1 hora |
 
----
+Al marcar un pago como `pagado`, si no se envía `fecha_pago` se usa la fecha actual.
 
-## 🔐 Seguridad
+### Dashboard
 
-- Los tokens JWT se validan en cada request protegido
-- Las contraseñas se guardan encriptadas en Supabase
-- El middleware valida usuarios antes de acceder a rutas protegidas
+| Método | Ruta | Acceso |
+| --- | --- | --- |
+| `GET` | `/api/dashboard` | Admin. Totales, ingresos del mes, pendientes, vencidos y últimos movimientos |
+| `GET` | `/api/dashboard/me` | Alumno. Deuda pendiente y meses |
 
----
+### Salud
 
-## 📝 Archivos modificados
+- `GET /api/health`
+- `GET /api/debug`
 
-✅ `package.json` - Agregados scripts start/dev y dependencias
-✅ `server.js` - Importadas rutas de autenticación
-✅ `config/supabase.js` - Nuevo archivo de configuración
-✅ `middleware/authMiddleware.js` - Nuevo middleware
-✅ `services/authService.js` - Nuevos servicios
-✅ `routes/auth.js` - Nuevos endpoints
-✅ `routes/alumnos.js` - Actualizado con middleware y validaciones
-✅ `models/Alumno.js` - Agregados campos supabaseId y direccion
-✅ `.env` - Actualizado con variables de Supabase
+## Roles y RLS
 
----
+- El backend usa la `service_role` y por tanto omite RLS.
+- Las políticas RLS existen para proteger accesos directos desde el frontend con la `publishable`/anon key.
+- Un alumno solo puede leer su propia ficha y sus pagos.
+- Solo un `admin` puede crear/editar/eliminar pagos y listar todos los alumnos.
+- Endurecimiento adicional del esquema:
+  - `profiles` no tiene `update` para `authenticated`, así que nadie puede ascenderse a `admin` desde el cliente.
+  - `alumnos` solo permite actualizar `nombre`, `correo`, `telefono`, `edad` y `direccion`; `activo`, `grupo`, `cinturon` y `user_id` quedan solo para el backend.
+  - Un alumno no puede ver fichas ni pagos de otros (verificado con la clave pública).
 
-## 💬 Preguntas frecuentes
+## Verificación
 
-**P: ¿Qué pasa si el usuario no está autenticado?**
-R: Las rutas con `authMiddleware` devuelven 401. Las rutas con `optionalAuthMiddleware` continúan pero sin usuario.
+Prueba de humo ejecutada contra el proyecto real (24/24 correctas):
 
-**P: ¿Cómo valido el token en el frontend?**
-R: Cuando el usuario inicia sesión, Supabase automáticamente:
+- login/verify de admin y alumno
+- crear/listar alumnos, validaciones y 401/403
+- crear pago, duplicado -> 409 y mes inválido -> 400
+- vinculación de `/alumnos/me` por correo
+- subida de comprobante, URL firmada y descarga
+- marcar pago como pagado con `fecha_pago` automática
+- dashboards de admin y alumno
+- RLS: ascenso a admin bloqueado, desactivar ficha bloqueado, datos ajenos invisibles
 
-- Guarda el token en `localStorage`
-- Lo incluye en requests automáticamente
-- Lo refresca cuando expira
+## Comprobantes
 
-**P: ¿Necesito cambiar el frontend?**
-R: No, el frontend ya está configurado correctamente y usa Supabase.
+- Bucket privado `comprobantes`.
+- Ruta interna: `<alumno_id>/<pago_id>-<timestamp>.<ext>`.
+- El backend sube con `service_role` y devuelve una URL firmada temporal.
+- Formatos: JPG, PNG, WEBP, PDF. Tamaño máximo: 5 MB.
 
----
+## Recordatorios por correo (opcional)
 
-## 🆘 Troubleshooting
+En `.env`:
 
-Si obtienes error al iniciar:
+```env
+ENABLE_REMINDERS=true
+REMINDERS_CRON=0 9 * * *
+EMAIL_SERVICE=gmail
+EMAIL_USER=tu-correo@gmail.com
+EMAIL_PASS=tu-app-password
+EMAIL_FROM=Club Deportivo Yokohama
+```
 
-1. Verifica que MongoDB esté ejecutándose
-2. Verifica las variables de `.env`
-3. Instala dependencias: `npm install`
-4. Revisa los logs en la consola
+El job agrupa los meses pendientes por alumno y envía un correo. Se inicia solo si `ENABLE_REMINDERS=true`.
 
-¡Tu integración Supabase está lista! 🎉
+## Notas de migración
+
+- El backend anterior usaba MongoDB. Los datos existentes **no** se migran automáticamente.
+- Si necesitas conservarlos, exporta los documentos de `alumnos`/`pagos` y mapéalos a las tablas nuevas:
+  - `nombre`, `correo`, `telefono`, `edad`, `direccion` se mantienen.
+  - `pagos.alumno` (nombre) debe convertirse en `pagos.alumno_id` (UUID de `alumnos`).
+  - `supabaseId` pasa a `alumnos.user_id`.
+- El proyecto Supabase anterior (`rpddsxvcnoxhipyxzeeg`) ya no existe; usa uno nuevo.

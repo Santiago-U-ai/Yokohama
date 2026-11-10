@@ -2,30 +2,62 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 
-import connectDB from "./config/db.js";
 import authRoutes from "./routes/auth.js";
-
 import alumnosRoutes from "./routes/alumnos.js";
 import pagosRoutes from "./routes/pagos.js";
 import dashboardRoutes from "./routes/dashboard.js";
-dotenv.config();
+import { errorHandler, notFound } from "./middleware/errorHandler.js";
+import { startRemindersJob } from "./jobs/recordatorios.js";
+import { startCobrosJob } from "./jobs/cobros.js";
 
-connectDB();
+dotenv.config();
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+const allowedOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-// Rutas de autenticación
-app.use("/api/auth", authRoutes);
+app.use(
+  cors({
+    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+  }),
+);
+app.use(express.json({ limit: "1mb" }));
 
-// Rutas de negocio
-app.use("/api", dashboardRoutes);
-app.use("/api/alumnos", alumnosRoutes);
-app.use("/api/pagos", pagosRoutes);
+app.get("/api/health", (req, res) => {
+  res.json({
+    ok: true,
+    service: "yokohama-backend",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get("/api/debug", (req, res) => res.json({ ok: true }));
 
-app.listen(process.env.PORT, () => {
-  console.log("Servidor corriendo en el puerto " + process.env.PORT);
+// Autenticación
+app.use("/api/auth", authRoutes);
+
+// Negocio
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/alumnos", alumnosRoutes);
+app.use("/api/pagos", pagosRoutes);
+
+app.use(notFound);
+app.use(errorHandler);
+
+const port = Number(process.env.PORT) || 5000;
+
+app.listen(port, () => {
+  console.log(`Servidor corriendo en el puerto ${port}`);
 });
+
+// Cobro automático de la mensualidad de cada mes.
+startCobrosJob();
+
+if (process.env.ENABLE_REMINDERS === "true") {
+  startRemindersJob();
+}
+
+export default app;
