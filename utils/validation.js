@@ -16,6 +16,58 @@ export const isMonth = (value) =>
   typeof value === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 
 /**
+ * Fecha ISO en formato AAAA-MM-DD que además exista en el calendario
+ * (rechaza 2023-02-29 o 2024-13-01).
+ */
+export const isDate = (value) => {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const date = new Date(`${value}T00:00:00Z`);
+
+  return (
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  );
+};
+
+/**
+ * Normaliza una fecha opcional. Devuelve null si es opcional y está vacía.
+ */
+export const parseDate = (
+  value,
+  field,
+  { required = false, min, max } = {},
+) => {
+  if (value === undefined || value === null || value === "") {
+    if (required) throw new HttpError(400, `El campo "${field}" es obligatorio`);
+    return null;
+  }
+
+  if (!isDate(value)) {
+    throw new HttpError(
+      400,
+      `El campo "${field}" debe ser una fecha válida (AAAA-MM-DD)`,
+    );
+  }
+
+  if (min && value < min) {
+    throw new HttpError(
+      400,
+      `El campo "${field}" no puede ser anterior a ${min}`,
+    );
+  }
+  if (max && value > max) {
+    throw new HttpError(
+      400,
+      `El campo "${field}" no puede ser posterior a ${max}`,
+    );
+  }
+
+  return value;
+};
+
+/**
  * Caracteres de control y de formato bidireccional que permiten inyectar
  * saltos, ocultar texto o romper cabeceras.
  */

@@ -27,7 +27,14 @@ create table if not exists public.alumnos (
   nombre text not null,
   correo text,
   telefono text,
-  edad integer check (edad is null or (edad >= 0 and edad <= 120)),
+  fecha_nacimiento date check (
+    fecha_nacimiento is null
+    or (fecha_nacimiento >= '1900-01-01' and fecha_nacimiento <= current_date)
+  ),
+  fecha_inicio date check (
+    fecha_inicio is null
+    or (fecha_inicio >= '1900-01-01' and fecha_inicio <= current_date)
+  ),
   direccion text,
   grupo text check (grupo is null or grupo in ('BABY', 'JUVENIL', 'SENIOR')),
   cinturon text,
@@ -150,7 +157,7 @@ alter table public.pagos enable row level security;
 -- desde el cliente. El backend usa service_role y omite estos grants.
 revoke update on public.profiles from authenticated;
 revoke update on public.alumnos from authenticated;
-grant update (nombre, correo, telefono, edad, direccion)
+grant update (nombre, correo, telefono, direccion, fecha_nacimiento, fecha_inicio)
   on public.alumnos to authenticated;
 
 drop policy if exists "profiles_update_own_or_admin" on public.profiles;

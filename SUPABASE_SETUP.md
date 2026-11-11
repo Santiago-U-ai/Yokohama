@@ -17,7 +17,12 @@ En **SQL Editor**, ejecuta en este orden:
 ```text
 BACK/supabase/schema.sql
 BACK/supabase/security_hardening.sql
+BACK/supabase/migracion_fechas.sql   # solo si la base ya existía
 ```
+
+`migracion_fechas.sql` reemplaza la antigua columna `edad` por
+`fecha_nacimiento` y añade `fecha_inicio` (inicio en karate). En proyectos
+nuevos no hace falta: `schema.sql` ya crea las columnas definitivas.
 
 Esto crea:
 
@@ -175,7 +180,7 @@ No existe `/api/debug`.
 - Un alumno solo puede leer su propia ficha y sus pagos.
 - Solo un `admin` puede crear/editar/eliminar pagos y listar todos los alumnos.
 - `profiles` no tiene `insert/update/delete` para `authenticated`: nadie puede ascenderse a `admin` desde el cliente.
-- `alumnos` solo permite actualizar `nombre`, `correo`, `telefono`, `edad` y `direccion`; `activo`, `grupo`, `cinturon` y `user_id` quedan solo para el backend.
+- `alumnos` solo permite actualizar `nombre`, `correo`, `telefono`, `direccion`, `fecha_nacimiento` y `fecha_inicio`; `activo`, `grupo`, `cinturon` y `user_id` quedan solo para el backend.
 - `pagos` es de solo lectura para `authenticated`; toda escritura pasa por el backend.
 - RLS está forzado (`force row level security`) y `anon` no tiene permisos sobre las tablas.
 

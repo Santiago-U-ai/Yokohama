@@ -25,7 +25,7 @@ grant select on public.profiles to authenticated;
 -- Alumnos: lectura según RLS, alta propia y edición de contacto.
 revoke insert, update, delete on public.alumnos from authenticated;
 grant select, insert, delete on public.alumnos to authenticated;
-grant update (nombre, correo, telefono, edad, direccion)
+grant update (nombre, correo, telefono, direccion, fecha_nacimiento, fecha_inicio)
   on public.alumnos to authenticated;
 
 -- Pagos: solo lectura desde el cliente. Toda escritura pasa por el backend.

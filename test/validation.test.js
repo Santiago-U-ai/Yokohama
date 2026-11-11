@@ -5,10 +5,12 @@ import {
   assertEnum,
   assertOneOf,
   cleanText,
+  isDate,
   isEmail,
   isMonth,
   isUuid,
   parseBoolean,
+  parseDate,
   parseInteger,
   parseNumber,
 } from "../utils/validation.js";
@@ -31,6 +33,30 @@ test("isMonth solo acepta YYYY-MM", () => {
   assert.equal(isMonth("2026-11"), true);
   assert.equal(isMonth("2026-13"), false);
   assert.equal(isMonth("11-2026"), false);
+});
+
+test("isDate solo acepta fechas reales en formato AAAA-MM-DD", () => {
+  assert.equal(isDate("2024-02-29"), true);
+  assert.equal(isDate("2023-02-29"), false);
+  assert.equal(isDate("2024-13-01"), false);
+  assert.equal(isDate("01-02-2024"), false);
+  assert.equal(isDate("ayer"), false);
+});
+
+test("parseDate normaliza opcionales y valida rangos", () => {
+  assert.equal(parseDate("2024-02-29", "fecha_nacimiento"), "2024-02-29");
+  assert.equal(parseDate("", "fecha_nacimiento"), null);
+  assert.equal(parseDate(null, "fecha_inicio"), null);
+  assert.throws(() => parseDate("2023-02-29", "fecha"), isHttpError(400));
+  assert.throws(() => parseDate("2024-13-01", "fecha"), isHttpError(400));
+  assert.throws(
+    () => parseDate("2024-05-01", "fecha", { max: "2024-04-30" }),
+    isHttpError(400),
+  );
+  assert.throws(
+    () => parseDate("1899-12-31", "fecha", { min: "1900-01-01" }),
+    isHttpError(400),
+  );
 });
 
 test("cleanText recorta, valida obligatorios y longitud", () => {

@@ -16,13 +16,16 @@ import {
   isEmail,
   isUuid,
   parseBoolean,
-  parseInteger,
+  parseDate,
   sanitizeSearchTerm,
 } from "../utils/validation.js";
 
 const router = express.Router();
 
 const GRUPOS = ["BABY", "JUVENIL", "SENIOR"];
+
+/** Fecha de hoy (AAAA-MM-DD) para rechazar fechas futuras. */
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 // Incluye los pagos para calcular el último pago y los pendientes.
 const ALUMNO_SELECT = "*, pagos(mes, estado, monto, fecha_pago)";
@@ -49,8 +52,18 @@ const normalizeAlumnoPayload = (body, { partial = false } = {}) => {
     payload.telefono = cleanText(body.telefono, "telefono", { max: 40 });
   }
 
-  if (has("edad")) {
-    payload.edad = parseInteger(body.edad, "edad", { min: 0, max: 120 });
+  if (has("fecha_nacimiento")) {
+    payload.fecha_nacimiento = parseDate(
+      body.fecha_nacimiento,
+      "fecha_nacimiento",
+      { max: todayISO() },
+    );
+  }
+
+  if (has("fecha_inicio")) {
+    payload.fecha_inicio = parseDate(body.fecha_inicio, "fecha_inicio", {
+      max: todayISO(),
+    });
   }
 
   if (has("direccion")) {
