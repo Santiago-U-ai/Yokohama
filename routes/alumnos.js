@@ -24,6 +24,8 @@ const router = express.Router();
 
 const GRUPOS = ["BABY", "JUVENIL", "SENIOR"];
 
+const SEDES = ["NORTE", "SUR"];
+
 /** Fecha de hoy (AAAA-MM-DD) para rechazar fechas futuras. */
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -72,6 +74,10 @@ const normalizeAlumnoPayload = (body, { partial = false } = {}) => {
 
   if (has("grupo")) {
     payload.grupo = assertEnum(body.grupo, "grupo", GRUPOS);
+  }
+
+  if (has("sede")) {
+    payload.sede = assertEnum(body.sede, "sede", SEDES);
   }
 
   if (has("cinturon")) {
@@ -128,7 +134,7 @@ const withCobroActual = async (alumno) => {
 
 /**
  * GET /api/alumnos
- * Solo admin. Filtros: ?grupo=BABY&activo=true&q=texto
+ * Solo admin. Filtros: ?sede=NORTE&grupo=BABY&activo=true&q=texto
  */
 router.get(
   "/",
@@ -139,6 +145,11 @@ router.get(
       .from("alumnos")
       .select(ALUMNO_SELECT)
       .order("nombre", { ascending: true });
+
+    if (req.query.sede) {
+      const sede = assertEnum(req.query.sede, "sede", SEDES);
+      query = query.eq("sede", sede);
+    }
 
     if (req.query.grupo) {
       const grupo = assertEnum(req.query.grupo, "grupo", GRUPOS);
@@ -273,6 +284,7 @@ router.post(
 
     if (!isAdmin) {
       delete payload.user_id;
+      delete payload.sede;
       payload.user_id = req.user.id;
       if (!payload.correo) payload.correo = req.user.email;
     }
@@ -333,9 +345,10 @@ router.patch(
 
     if (req.role !== "admin") {
       // Un alumno puede actualizar sus datos de contacto, no su estado,
-      // grupo, cinturón ni la vinculación con otra cuenta.
+      // grupo, sede, cinturón ni la vinculación con otra cuenta.
       delete payload.activo;
       delete payload.grupo;
+      delete payload.sede;
       delete payload.cinturon;
       delete payload.user_id;
     }

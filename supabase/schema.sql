@@ -36,6 +36,7 @@ create table if not exists public.alumnos (
     or (fecha_inicio >= '1900-01-01' and fecha_inicio <= current_date)
   ),
   direccion text,
+  sede text not null default 'NORTE' check (sede in ('NORTE', 'SUR')),
   grupo text check (grupo is null or grupo in ('BABY', 'JUVENIL', 'SENIOR')),
   cinturon text,
   activo boolean not null default true,
@@ -47,6 +48,7 @@ create table if not exists public.alumnos (
 create index if not exists alumnos_user_id_idx on public.alumnos (user_id);
 create index if not exists alumnos_nombre_idx on public.alumnos (nombre);
 create index if not exists alumnos_correo_idx on public.alumnos (lower(correo));
+create index if not exists alumnos_sede_grupo_idx on public.alumnos (sede, grupo);
 
 -- ------------------------------------------------------------
 -- 3. Pagos

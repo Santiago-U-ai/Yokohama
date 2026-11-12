@@ -45,7 +45,7 @@
     {
       "nombre": "Listar alumnos (admin)",
       "metodo": "GET",
-      "url": "http://localhost:5000/api/alumnos?grupo=BABY&activo=true"
+      "url": "http://localhost:5000/api/alumnos?sede=NORTE&grupo=BABY&activo=true"
     },
     {
       "nombre": "Crear alumno (admin)",
@@ -59,6 +59,7 @@
         "fecha_nacimiento": "2019-04-12",
         "fecha_inicio": "2024-02-01",
         "direccion": "Calle 1 # 2-3",
+        "sede": "NORTE",
         "grupo": "BABY",
         "cinturon": "BLANCO",
         "activo": true

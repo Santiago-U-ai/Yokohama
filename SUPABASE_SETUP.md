@@ -18,16 +18,21 @@ En **SQL Editor**, ejecuta en este orden:
 BACK/supabase/schema.sql
 BACK/supabase/security_hardening.sql
 BACK/supabase/migracion_fechas.sql   # solo si la base ya existía
+BACK/supabase/migracion_sedes.sql    # solo si la base ya existía
 ```
 
 `migracion_fechas.sql` reemplaza la antigua columna `edad` por
 `fecha_nacimiento` y añade `fecha_inicio` (inicio en karate). En proyectos
 nuevos no hace falta: `schema.sql` ya crea las columnas definitivas.
 
+`migracion_sedes.sql` añade `alumnos.sede` (`NORTE` | `SUR`); los alumnos
+que ya existían quedan en la sede Norte. Igual que la anterior, es
+innecesaria en un proyecto nuevo.
+
 Esto crea:
 
 - `profiles` (rol `admin` o `alumno`)
-- `alumnos` (puede existir sin cuenta de Auth)
+- `alumnos` (puede existir sin cuenta de Auth, con sede y grupo)
 - `pagos` (un pago por alumno/mes)
 - `security_events` (auditoría, sin acceso desde el cliente)
 - triggers de `updated_at` y de creación automática de perfil
@@ -136,11 +141,11 @@ navegador también se acepta `Authorization: Bearer <access_token>`.
 
 | Método | Ruta | Acceso |
 | --- | --- | --- |
-| `GET` | `/api/alumnos` | Admin. Filtros: `grupo`, `activo`, `q` |
+| `GET` | `/api/alumnos` | Admin. Filtros: `sede`, `grupo`, `activo`, `q` |
 | `GET` | `/api/alumnos/me` | Alumno autenticado. Vincula por correo si existe una ficha sin cuenta |
 | `GET` | `/api/alumnos/:id` | Admin o el propio alumno |
 | `POST` | `/api/alumnos` | Admin, o usuario creando su propia ficha |
-| `PATCH` | `/api/alumnos/:id` | Admin o el propio alumno (sin cambiar estado/grupo/cinturón) |
+| `PATCH` | `/api/alumnos/:id` | Admin o el propio alumno (sin cambiar estado/sede/grupo/cinturón) |
 | `DELETE` | `/api/alumnos/:id` | Admin |
 
 ### Pagos

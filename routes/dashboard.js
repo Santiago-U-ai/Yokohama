@@ -68,7 +68,7 @@ router.get(
         .select("*, alumno:alumnos(id, nombre, correo)")
         .order("created_at", { ascending: false })
         .limit(5),
-      supabaseAdmin.from("alumnos").select("grupo"),
+      supabaseAdmin.from("alumnos").select("sede, grupo"),
     ]);
 
     for (const result of [
@@ -85,12 +85,17 @@ router.get(
     }
 
     const porGrupo = { BABY: 0, JUVENIL: 0, SENIOR: 0, sinGrupo: 0 };
+    const porSede = { NORTE: 0, SUR: 0 };
 
     for (const alumno of grupos.data ?? []) {
       if (alumno.grupo && porGrupo[alumno.grupo] !== undefined) {
         porGrupo[alumno.grupo] += 1;
       } else {
         porGrupo.sinGrupo += 1;
+      }
+
+      if (alumno.sede && porSede[alumno.sede] !== undefined) {
+        porSede[alumno.sede] += 1;
       }
     }
 
@@ -102,6 +107,7 @@ router.get(
         pendientes: pagosPendientes.count ?? 0,
         vencimientos: pagosVencidos.count ?? 0,
         porGrupo,
+        porSede,
         mes,
       },
       alumnos: (alumnosRecientes.data ?? []).map(serializeAlumno),
