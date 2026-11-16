@@ -57,7 +57,7 @@ test("serializeAsistencia recorta la hora y aplana el alumno", () => {
     fecha: "2026-11-15",
     hora: "18:30:00",
     presente: true,
-    alumno: { id: "alumno-1", nombre: "Emiliano" },
+    alumno: { id: "alumno-1", nombre: "Emiliano", grupo: "BABY", sede: "NORTE" },
   };
 
   const serialized = serializeAsistencia(row);
@@ -65,6 +65,8 @@ test("serializeAsistencia recorta la hora y aplana el alumno", () => {
   assert.equal(serialized._id, "asis-1");
   assert.equal(serialized.alumnoId, "alumno-1");
   assert.equal(serialized.alumno, "Emiliano");
+  assert.equal(serialized.alumnoGrupo, "BABY");
+  assert.equal(serialized.alumnoSede, "NORTE");
   assert.equal(serialized.hora, "18:30");
   assert.equal(serializeAsistencia(null), null);
 });

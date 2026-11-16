@@ -21,15 +21,16 @@ export const serializeAsistencia = (row) => {
   if (!row) return null;
 
   const alumno = row.alumno;
+  const alumnoRow =
+    alumno && !Array.isArray(alumno) && typeof alumno === "object" ? alumno : null;
 
   return {
     ...row,
     _id: row.id,
     alumnoId: row.alumno_id,
-    alumno:
-      alumno && !Array.isArray(alumno) && typeof alumno === "object"
-        ? alumno.nombre
-        : (alumno ?? null),
+    alumno: alumnoRow ? alumnoRow.nombre : (alumno ?? null),
+    alumnoGrupo: alumnoRow?.grupo ?? null,
+    alumnoSede: alumnoRow?.sede ?? null,
     hora: typeof row.hora === "string" ? row.hora.slice(0, 5) : row.hora,
   };
 };

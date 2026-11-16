@@ -11,16 +11,31 @@
 -- ------------------------------------------------------------
 
 create table if not exists public.asistencias (
-  id uuid primary key default gen_random_uuid(),
   alumno_id uuid not null references public.alumnos (id) on delete cascade,
   fecha date not null check (fecha >= '1900-01-01'),
   hora time not null,
   presente boolean not null default true,
+  grupo text,
+  sede text,
   registrado_por uuid references public.profiles (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (alumno_id, fecha, hora)
 );
+
+-- Si la tabla ya existía, añade las columnas de la clase.
+alter table public.asistencias add column if not exists grupo text;
+alter table public.asistencias add column if not exists sede text;
+
+alter table public.asistencias drop constraint if exists asistencias_grupo_check;
+alter table public.asistencias
+  add constraint asistencias_grupo_check
+  check (grupo is null or grupo in ('BABY', 'JUVENIL', 'SENIOR'));
+
+alter table public.asistencias drop constraint if exists asistencias_sede_check;
+alter table public.asistencias
+  add constraint asistencias_sede_check
+  check (sede is null or sede in ('NORTE', 'SUR'));
 
 create index if not exists asistencias_fecha_idx
   on public.asistencias (fecha, hora);

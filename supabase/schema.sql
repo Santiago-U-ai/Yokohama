@@ -81,6 +81,10 @@ create table if not exists public.asistencias (
   fecha date not null check (fecha >= '1900-01-01'),
   hora time not null,
   presente boolean not null default true,
+  -- Grupo y sede de la clase en el momento de la lista: si el alumno
+  -- cambia después, la asistencia antigua sigue en su clase original.
+  grupo text check (grupo is null or grupo in ('BABY', 'JUVENIL', 'SENIOR')),
+  sede text check (sede is null or sede in ('NORTE', 'SUR')),
   registrado_por uuid references public.profiles (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

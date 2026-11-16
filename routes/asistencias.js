@@ -5,15 +5,16 @@ import {
   requireAdmin,
 } from "../middleware/authMiddleware.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { groupClases } from "../utils/asistencias.js";
 import { HttpError } from "../utils/httpError.js";
 import { serializeAsistencia } from "../utils/serializers.js";
 import { throwIfError, throwWriteError } from "../utils/supabaseError.js";
 import {
   assertEnum,
-  isTime,
   isUuid,
   parseBoolean,
   parseDate,
+  parseInteger,
   parseTime,
 } from "../utils/validation.js";
 
@@ -25,14 +26,50 @@ const SEDES = ["NORTE", "SUR"];
 /** Tope de alumnos por llamada a lista. */
 const MAX_REGISTROS = 200;
 
+/** Tope de clases devueltas por el historial. */
+const MAX_CLASES = 200;
+
 /** Fecha de hoy (AAAA-MM-DD) para rechazar asistencias futuras. */
 const todayISO = () => new Date().toISOString().slice(0, 10);
+
+/** Suma (o resta) días a una fecha ISO. */
+const shiftDays = (iso, days) => {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
 
 const ASISTENCIA_SELECT =
   "*, alumno:alumnos(id, nombre, correo, grupo, sede)";
 
 const byAlumnoName = (a, b) =>
   String(a.alumno ?? "").localeCompare(String(b.alumno ?? ""), "es");
+
+/**
+ * PostgREST devuelve como máximo 1000 filas por petición, así que el
+ * historial se pide por páginas hasta agotar el rango.
+ */
+const fetchAsistencias = async (buildQuery) => {
+  const pageSize = 1000;
+  const rows = [];
+
+  for (let page = 0; page < 10; page += 1) {
+    const from = page * pageSize;
+    const { data, error } = await buildQuery().range(
+      from,
+      from + pageSize - 1,
+    );
+
+    throwIfError(error);
+
+    rows.push(...(data ?? []));
+
+    if ((data ?? []).length < pageSize) break;
+  }
+
+  return rows;
+};
+
 
 /**
  * Normaliza la lista de registros enviada por el panel:
@@ -95,27 +132,25 @@ router.get(
     // Postgres compara `time` con la forma HH:MM sin problema.
     if (hora) query = query.eq("hora", hora);
 
-    // El grupo y la sede viven en `alumnos`, así que primero se resuelven
-    // los ids que cumplen el filtro.
-    if (grupo || sede) {
-      let alumnosQuery = supabaseAdmin.from("alumnos").select("id");
-
-      if (grupo) alumnosQuery = alumnosQuery.eq("grupo", grupo);
-      if (sede) alumnosQuery = alumnosQuery.eq("sede", sede);
-
-      const { data: alumnos, error: alumnosError } = await alumnosQuery;
-      throwIfError(alumnosError);
-
-      const ids = (alumnos ?? []).map((alumno) => alumno.id);
-      if (ids.length === 0) return res.json([]);
-
-      query = query.in("alumno_id", ids);
-    }
-
     const { data, error } = await query;
     throwIfError(error);
 
-    res.json((data ?? []).map(serializeAsistencia).sort(byAlumnoName));
+    // El grupo y la sede se guardan en el propio registro; si un alumno
+    // cambió de grupo, la lista antigua sigue perteneciendo a su clase.
+    const lista = (data ?? [])
+      .map(serializeAsistencia)
+      .filter((registro) => {
+        const grupoRegistro =
+          registro.grupo ?? registro.alumnoGrupo ?? "SIN GRUPO";
+        const sedeRegistro = registro.sede ?? registro.alumnoSede;
+
+        return (
+          (!grupo || grupoRegistro === grupo) && (!sede || sedeRegistro === sede)
+        );
+      })
+      .sort(byAlumnoName);
+
+    res.json(lista);
   }),
 );
 
@@ -145,13 +180,13 @@ router.post(
     const ids = registros.map((registro) => registro.alumno_id);
     const { data: alumnos, error: alumnosError } = await supabaseAdmin
       .from("alumnos")
-      .select("id")
+      .select("id, grupo, sede")
       .in("id", ids);
 
     throwIfError(alumnosError);
 
-    const existentes = new Set((alumnos ?? []).map((alumno) => alumno.id));
-    const faltante = ids.find((id) => !existentes.has(id));
+    const porId = new Map((alumnos ?? []).map((alumno) => [alumno.id, alumno]));
+    const faltante = ids.find((id) => !porId.has(id));
 
     if (faltante) {
       throw new HttpError(
@@ -160,13 +195,20 @@ router.post(
       );
     }
 
-    const rows = registros.map((registro) => ({
-      alumno_id: registro.alumno_id,
-      fecha,
-      hora,
-      presente: registro.presente,
-      registrado_por: req.user.id,
-    }));
+    const rows = registros.map((registro) => {
+      const alumno = porId.get(registro.alumno_id);
+
+      return {
+        alumno_id: registro.alumno_id,
+        fecha,
+        hora,
+        presente: registro.presente,
+        // La clase queda fijada aunque después el alumno cambie de grupo.
+        grupo: alumno?.grupo ?? null,
+        sede: alumno?.sede ?? null,
+        registrado_por: req.user.id,
+      };
+    });
 
     const { data, error } = await supabaseAdmin
       .from("asistencias")
@@ -176,6 +218,52 @@ router.post(
     throwWriteError(error, "No se pudo guardar la asistencia");
 
     res.json((data ?? []).map(serializeAsistencia).sort(byAlumnoName));
+  }),
+);
+
+/**
+ * GET /api/asistencias/clases
+ * Solo admin. Lista las clases con lista guardada, agrupadas por
+ * fecha, hora, sede y grupo.
+ * Filtros: ?desde=AAAA-MM-DD&hasta=AAAA-MM-DD&grupo=BABY&sede=NORTE&limit=30
+ */
+router.get(
+  "/clases",
+  authMiddleware,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const hoy = todayISO();
+    const desde =
+      parseDate(req.query.desde, "desde", { min: "1900-01-01" }) ??
+      shiftDays(hoy, -60);
+    const hasta =
+      parseDate(req.query.hasta, "hasta", { min: "1900-01-01" }) ?? hoy;
+    const grupo = assertEnum(req.query.grupo, "grupo", GRUPOS);
+    const sede = assertEnum(req.query.sede, "sede", SEDES);
+    const limit = parseInteger(req.query.limit ?? 30, "limit", {
+      min: 1,
+      max: MAX_CLASES,
+    });
+
+    if (desde > hasta) {
+      throw new HttpError(400, "El rango de fechas está invertido");
+    }
+
+    const rows = await fetchAsistencias(() =>
+      supabaseAdmin
+        .from("asistencias")
+        .select(
+          "alumno_id, fecha, hora, presente, grupo, sede, alumno:alumnos(grupo, sede)",
+        )
+        .gte("fecha", desde)
+        .lte("fecha", hasta)
+        .order("fecha", { ascending: false })
+        .order("hora", { ascending: false })
+        // Desempata para que la paginación no repita ni pierda filas.
+        .order("alumno_id", { ascending: true }),
+    );
+
+    res.json(groupClases(rows, { grupo, sede, limit }));
   }),
 );
 

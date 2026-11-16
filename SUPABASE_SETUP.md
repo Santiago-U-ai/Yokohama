@@ -31,14 +31,16 @@ que ya existían quedan en la sede Norte. Igual que la anterior, es
 innecesaria en un proyecto nuevo.
 
 `migracion_asistencias.sql` crea la tabla `asistencias` (llamada a lista por
-grupo). También es innecesaria si acabas de ejecutar `schema.sql`.
+grupo). También es innecesaria si acabas de ejecutar `schema.sql`. Si ya la
+habías ejecutado antes, vuelve a pasarla: añade `grupo` y `sede` a la tabla
+para que cada lista guardada conserve la clase a la que pertenece.
 
 Esto crea:
 
 - `profiles` (rol `admin` o `alumno`)
 - `alumnos` (puede existir sin cuenta de Auth, con sede y grupo)
 - `pagos` (un pago por alumno/mes)
-- `asistencias` (un check por alumno, fecha y hora del entreno)
+- `asistencias` (un check por alumno, fecha y hora del entreno, con el grupo y la sede de la clase)
 - `security_events` (auditoría, sin acceso desde el cliente)
 - triggers de `updated_at` y de creación automática de perfil
 - políticas RLS y permisos mínimos
@@ -176,11 +178,18 @@ Al marcar un pago como `pagado`, si no se envía `fecha_pago` se usa la fecha ac
 | --- | --- | --- |
 | `GET` | `/api/asistencias` | Admin. Filtros: `fecha` (obligatorio), `hora`, `grupo`, `sede` |
 | `POST` | `/api/asistencias` | Admin. Body: `fecha`, `hora`, `registros[]` con `alumno_id` y `presente` |
+| `GET` | `/api/asistencias/clases` | Admin. Filtros: `desde`, `hasta`, `grupo`, `sede`, `limit` (máx. 200) |
 | `GET` | `/api/asistencias/resumen` | Admin. Filtros: `desde`, `hasta` |
 
 `POST` es idempotente por `(alumno_id, fecha, hora)`: reenviar la lista del
 mismo entreno actualiza los checks en vez de duplicarlos. Se envía el grupo
-completo, así que quien no está marcado queda como ausente.
+completo, así que quien no está marcado queda como ausente. El backend guarda
+`grupo` y `sede` en cada fila: si el alumno cambia de grupo o de sede más
+adelante, la lista antigua sigue perteneciendo a su clase original.
+
+`GET /api/asistencias/clases` devuelve las clases con lista guardada
+agrupadas por fecha, hora, sede y grupo, con `total`, `presentes` y `ausentes`.
+Sin `desde`/`hasta` cubre los últimos 60 días; por defecto devuelve 30 clases.
 
 ### Dashboard
 
