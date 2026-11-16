@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { serializeAlumno, serializePago } from "../utils/serializers.js";
+import { serializeAlumno, serializeAsistencia, serializePago } from "../utils/serializers.js";
 
 test("serializeAlumno agrega alias compatibles con el frontend", () => {
   const row = {
@@ -48,4 +48,35 @@ test("serializePago tolera pagos sin relación cargada", () => {
   });
 
   assert.equal(serialized.alumno, null);
+});
+
+test("serializeAsistencia recorta la hora y aplana el alumno", () => {
+  const row = {
+    id: "asis-1",
+    alumno_id: "alumno-1",
+    fecha: "2026-11-15",
+    hora: "18:30:00",
+    presente: true,
+    alumno: { id: "alumno-1", nombre: "Emiliano" },
+  };
+
+  const serialized = serializeAsistencia(row);
+
+  assert.equal(serialized._id, "asis-1");
+  assert.equal(serialized.alumnoId, "alumno-1");
+  assert.equal(serialized.alumno, "Emiliano");
+  assert.equal(serialized.hora, "18:30");
+  assert.equal(serializeAsistencia(null), null);
+});
+
+test("serializeAsistencia tolera asistencias sin relación cargada", () => {
+  const serialized = serializeAsistencia({
+    id: "asis-2",
+    alumno_id: "alumno-2",
+    hora: "07:00:00",
+    alumno: null,
+  });
+
+  assert.equal(serialized.alumno, null);
+  assert.equal(serialized.hora, "07:00");
 });

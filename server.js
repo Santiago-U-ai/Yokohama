@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import authRoutes from "./routes/auth.js";
 import alumnosRoutes from "./routes/alumnos.js";
 import pagosRoutes from "./routes/pagos.js";
+import asistenciasRoutes from "./routes/asistencias.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
 import { globalLimiter } from "./middleware/rateLimit.js";
@@ -74,6 +75,7 @@ app.use("/api/auth", authRoutes);
 // Recursos
 app.use("/api/alumnos", alumnosRoutes);
 app.use("/api/pagos", pagosRoutes);
+app.use("/api/asistencias", asistenciasRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 
 app.use(notFound);

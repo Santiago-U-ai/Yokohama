@@ -8,11 +8,13 @@ import {
   isDate,
   isEmail,
   isMonth,
+  isTime,
   isUuid,
   parseBoolean,
   parseDate,
   parseInteger,
   parseNumber,
+  parseTime,
 } from "../utils/validation.js";
 
 const isHttpError = (status) => (error) =>
@@ -57,6 +59,26 @@ test("parseDate normaliza opcionales y valida rangos", () => {
     () => parseDate("1899-12-31", "fecha", { min: "1900-01-01" }),
     isHttpError(400),
   );
+});
+
+test("isTime solo acepta horas reales en formato HH:MM", () => {
+  assert.equal(isTime("08:30"), true);
+  assert.equal(isTime("23:59"), true);
+  assert.equal(isTime("00:00:00"), true);
+  assert.equal(isTime("24:00"), false);
+  assert.equal(isTime("8:30"), false);
+  assert.equal(isTime("18:60"), false);
+  assert.equal(isTime("tarde"), false);
+});
+
+test("parseTime normaliza a HH:MM y valida obligatorios", () => {
+  assert.equal(parseTime("18:30", "hora"), "18:30");
+  assert.equal(parseTime("18:30:45", "hora"), "18:30");
+  assert.equal(parseTime("", "hora"), null);
+  assert.equal(parseTime(null, "hora"), null);
+  assert.throws(() => parseTime("", "hora", { required: true }), isHttpError(400));
+  assert.throws(() => parseTime("25:00", "hora"), isHttpError(400));
+  assert.throws(() => parseTime(1830, "hora"), isHttpError(400));
 });
 
 test("cleanText recorta, valida obligatorios y longitud", () => {

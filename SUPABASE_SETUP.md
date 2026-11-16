@@ -17,8 +17,9 @@ En **SQL Editor**, ejecuta en este orden:
 ```text
 BACK/supabase/schema.sql
 BACK/supabase/security_hardening.sql
-BACK/supabase/migracion_fechas.sql   # solo si la base ya existía
-BACK/supabase/migracion_sedes.sql    # solo si la base ya existía
+BACK/supabase/migracion_fechas.sql       # solo si la base ya existía
+BACK/supabase/migracion_sedes.sql        # solo si la base ya existía
+BACK/supabase/migracion_asistencias.sql  # solo si la base ya existía
 ```
 
 `migracion_fechas.sql` reemplaza la antigua columna `edad` por
@@ -29,11 +30,15 @@ nuevos no hace falta: `schema.sql` ya crea las columnas definitivas.
 que ya existían quedan en la sede Norte. Igual que la anterior, es
 innecesaria en un proyecto nuevo.
 
+`migracion_asistencias.sql` crea la tabla `asistencias` (llamada a lista por
+grupo). También es innecesaria si acabas de ejecutar `schema.sql`.
+
 Esto crea:
 
 - `profiles` (rol `admin` o `alumno`)
 - `alumnos` (puede existir sin cuenta de Auth, con sede y grupo)
 - `pagos` (un pago por alumno/mes)
+- `asistencias` (un check por alumno, fecha y hora del entreno)
 - `security_events` (auditoría, sin acceso desde el cliente)
 - triggers de `updated_at` y de creación automática de perfil
 - políticas RLS y permisos mínimos
@@ -165,6 +170,18 @@ navegador también se acepta `Authorization: Bearer <access_token>`.
 
 Al marcar un pago como `pagado`, si no se envía `fecha_pago` se usa la fecha actual.
 
+### Asistencias (llamar a lista)
+
+| Método | Ruta | Acceso |
+| --- | --- | --- |
+| `GET` | `/api/asistencias` | Admin. Filtros: `fecha` (obligatorio), `hora`, `grupo`, `sede` |
+| `POST` | `/api/asistencias` | Admin. Body: `fecha`, `hora`, `registros[]` con `alumno_id` y `presente` |
+| `GET` | `/api/asistencias/resumen` | Admin. Filtros: `desde`, `hasta` |
+
+`POST` es idempotente por `(alumno_id, fecha, hora)`: reenviar la lista del
+mismo entreno actualiza los checks en vez de duplicarlos. Se envía el grupo
+completo, así que quien no está marcado queda como ausente.
+
 ### Dashboard
 
 | Método | Ruta | Acceso |
@@ -187,6 +204,7 @@ No existe `/api/debug`.
 - `profiles` no tiene `insert/update/delete` para `authenticated`: nadie puede ascenderse a `admin` desde el cliente.
 - `alumnos` solo permite actualizar `nombre`, `correo`, `telefono`, `direccion`, `fecha_nacimiento` y `fecha_inicio`; `activo`, `grupo`, `cinturon` y `user_id` quedan solo para el backend.
 - `pagos` es de solo lectura para `authenticated`; toda escritura pasa por el backend.
+- `asistencias` también es de solo lectura para `authenticated` y solo un `admin` la ve.
 - RLS está forzado (`force row level security`) y `anon` no tiene permisos sobre las tablas.
 
 ## Verificación

@@ -100,6 +100,30 @@
       "body": "multipart/form-data con el campo comprobante (JPG, PNG, WEBP o PDF, máximo 5 MB)"
     },
     {
+      "nombre": "Listar asistencias de un grupo (admin)",
+      "metodo": "GET",
+      "url": "http://localhost:5000/api/asistencias?fecha=2026-11-15&hora=18:30&grupo=BABY&sede=NORTE"
+    },
+    {
+      "nombre": "Guardar la lista de un entreno (admin)",
+      "metodo": "POST",
+      "url": "http://localhost:5000/api/asistencias",
+      "headers": { "Content-Type": "application/json", "X-CSRF-Token": "<token>" },
+      "body": {
+        "fecha": "2026-11-15",
+        "hora": "18:30",
+        "registros": [
+          { "alumno_id": "<uuid-del-alumno>", "presente": true },
+          { "alumno_id": "<uuid-de-otro-alumno>", "presente": false }
+        ]
+      }
+    },
+    {
+      "nombre": "Resumen de asistencia por rango (admin)",
+      "metodo": "GET",
+      "url": "http://localhost:5000/api/asistencias/resumen?desde=2026-11-01&hasta=2026-11-30"
+    },
+    {
       "nombre": "Dashboard admin",
       "metodo": "GET",
       "url": "http://localhost:5000/api/dashboard"

@@ -13,6 +13,27 @@ export const serializeAlumno = (row) => {
   };
 };
 
+/**
+ * Registro de asistencia. Postgres devuelve `hora` como HH:MM:SS; el
+ * frontend solo usa HH:MM.
+ */
+export const serializeAsistencia = (row) => {
+  if (!row) return null;
+
+  const alumno = row.alumno;
+
+  return {
+    ...row,
+    _id: row.id,
+    alumnoId: row.alumno_id,
+    alumno:
+      alumno && !Array.isArray(alumno) && typeof alumno === "object"
+        ? alumno.nombre
+        : (alumno ?? null),
+    hora: typeof row.hora === "string" ? row.hora.slice(0, 5) : row.hora,
+  };
+};
+
 export const serializePago = (row) => {
   if (!row) return null;
 

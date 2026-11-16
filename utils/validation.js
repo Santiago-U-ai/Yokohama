@@ -32,6 +32,31 @@ export const isDate = (value) => {
 };
 
 /**
+ * Hora del día en formato 24 h `HH:MM` (se acepta también `HH:MM:SS`).
+ */
+export const isTime = (value) =>
+  typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(value);
+
+/**
+ * Normaliza una hora opcional a `HH:MM`. Devuelve null si está vacía.
+ */
+export const parseTime = (value, field, { required = false } = {}) => {
+  if (value === undefined || value === null || value === "") {
+    if (required) throw new HttpError(400, `El campo "${field}" es obligatorio`);
+    return null;
+  }
+
+  if (!isTime(value)) {
+    throw new HttpError(
+      400,
+      `El campo "${field}" debe ser una hora válida (HH:MM)`,
+    );
+  }
+
+  return value.slice(0, 5);
+};
+
+/**
  * Normaliza una fecha opcional. Devuelve null si es opcional y está vacía.
  */
 export const parseDate = (

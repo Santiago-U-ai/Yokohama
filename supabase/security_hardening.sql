@@ -12,10 +12,12 @@
 alter table public.profiles force row level security;
 alter table public.alumnos force row level security;
 alter table public.pagos force row level security;
+alter table public.asistencias force row level security;
 
 revoke all on public.profiles from anon;
 revoke all on public.alumnos from anon;
 revoke all on public.pagos from anon;
+revoke all on public.asistencias from anon;
 
 -- Nadie puede modificar perfiles desde el cliente: el rol solo se
 -- cambia con service_role (panel de Supabase / backend).
@@ -31,6 +33,11 @@ grant update (nombre, correo, telefono, direccion, fecha_nacimiento, fecha_inici
 -- Pagos: solo lectura desde el cliente. Toda escritura pasa por el backend.
 revoke insert, update, delete on public.pagos from authenticated;
 grant select on public.pagos to authenticated;
+
+-- Asistencias: solo lectura desde el cliente (un admin). El backend
+-- registra la lista con service_role.
+revoke insert, update, delete on public.asistencias from authenticated;
+grant select on public.asistencias to authenticated;
 
 -- ------------------------------------------------------------
 -- 2. Funciones: ejecución restringida

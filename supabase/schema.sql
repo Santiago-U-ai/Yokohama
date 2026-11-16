@@ -72,6 +72,27 @@ create index if not exists pagos_estado_idx on public.pagos (estado);
 create index if not exists pagos_mes_idx on public.pagos (mes);
 
 -- ------------------------------------------------------------
+-- 3b. Asistencias (llamada a lista por grupo)
+--     Un registro por alumno, fecha y hora del entreno.
+-- ------------------------------------------------------------
+create table if not exists public.asistencias (
+  id uuid primary key default gen_random_uuid(),
+  alumno_id uuid not null references public.alumnos (id) on delete cascade,
+  fecha date not null check (fecha >= '1900-01-01'),
+  hora time not null,
+  presente boolean not null default true,
+  registrado_por uuid references public.profiles (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (alumno_id, fecha, hora)
+);
+
+create index if not exists asistencias_fecha_idx
+  on public.asistencias (fecha, hora);
+create index if not exists asistencias_alumno_id_idx
+  on public.asistencias (alumno_id);
+
+-- ------------------------------------------------------------
 -- 4. updated_at automático
 -- ------------------------------------------------------------
 create or replace function public.set_updated_at()
@@ -97,6 +118,11 @@ for each row execute function public.set_updated_at();
 drop trigger if exists pagos_set_updated_at on public.pagos;
 create trigger pagos_set_updated_at
 before update on public.pagos
+for each row execute function public.set_updated_at();
+
+drop trigger if exists asistencias_set_updated_at on public.asistencias;
+create trigger asistencias_set_updated_at
+before update on public.asistencias
 for each row execute function public.set_updated_at();
 
 -- ------------------------------------------------------------
@@ -154,6 +180,7 @@ grant execute on function public.is_admin() to authenticated;
 alter table public.profiles enable row level security;
 alter table public.alumnos enable row level security;
 alter table public.pagos enable row level security;
+alter table public.asistencias enable row level security;
 
 -- Evita que un usuario se ascienda a admin o cambie columnas protegidas
 -- desde el cliente. El backend usa service_role y omite estos grants.
@@ -216,6 +243,29 @@ with check (public.is_admin());
 drop policy if exists "pagos_delete_admin" on public.pagos;
 create policy "pagos_delete_admin"
 on public.pagos for delete to authenticated
+using (public.is_admin());
+
+-- La asistencia solo la consulta y edita un admin: es información del club,
+-- no del alumno. El backend entra con service_role.
+drop policy if exists "asistencias_select_admin" on public.asistencias;
+create policy "asistencias_select_admin"
+on public.asistencias for select to authenticated
+using (public.is_admin());
+
+drop policy if exists "asistencias_insert_admin" on public.asistencias;
+create policy "asistencias_insert_admin"
+on public.asistencias for insert to authenticated
+with check (public.is_admin());
+
+drop policy if exists "asistencias_update_admin" on public.asistencias;
+create policy "asistencias_update_admin"
+on public.asistencias for update to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "asistencias_delete_admin" on public.asistencias;
+create policy "asistencias_delete_admin"
+on public.asistencias for delete to authenticated
 using (public.is_admin());
 
 -- ------------------------------------------------------------
